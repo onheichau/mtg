@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mortgage Insight Tool</title>
+    <title>Mortgage Insight Tool (D3)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load D3.js -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -37,11 +37,22 @@
         .crosshair-label-bg { fill: #1e293b; opacity: 0; }
         .crosshair-label-text { fill: #fff; font-size: 11px; font-family: monospace; opacity: 0; font-weight: 600; }
         
-        /* Legend / Status Line Styles */
+        /* Markers for Adjustments */
+        .event-marker-line {
+            stroke: #f59e0b; /* Amber-500 */
+            stroke-width: 1.5px;
+            stroke-dasharray: 3 3;
+            opacity: 0.6;
+        }
+        .event-marker-dot {
+            fill: #f59e0b;
+            stroke: #fff;
+            stroke-width: 2px;
+        }
+
         .chart-legend { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; pointer-events: none; }
         .legend-label { fill: #64748b; font-weight: 500; }
         .legend-value { font-weight: 600; font-family: monospace; }
-        .legend-dot { r: 4px; }
         
         .overlay { fill: none; pointer-events: all; }
     </style>
@@ -53,9 +64,9 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <i data-lucide="landmark" class="text-indigo-600 w-6 h-6"></i>
-                <h1 class="text-xl font-bold text-slate-900">Mortgage<span class="text-indigo-600">Tool</span></h1>
+                <h1 class="text-xl font-bold text-slate-900">Mortgage<span class="text-indigo-600">Insight</span></h1>
             </div>
-            <button onclick="resetDefaults()" class="text-sm text-slate-500 hover:text-indigo-600 transition-colors flex items-center gap-1">
+            <button type="button" onclick="resetDefaults()" class="text-sm text-slate-500 hover:text-indigo-600 transition-colors flex items-center gap-1">
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset
             </button>
         </div>
@@ -64,15 +75,15 @@
     <main class="flex-grow p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <!-- INPUT CONTROLS -->
-            <div class="lg:col-span-4 space-y-6">
+            <!-- LEFT COLUMN: CORE PARAMS (Reduced width) -->
+            <div class="lg:col-span-3 space-y-6">
                 
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                     <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
                         <i data-lucide="sliders" class="w-5 h-5 text-slate-400"></i> Parameters
                     </h2>
 
-                    <!-- Original Loan Amount -->
+                    <!-- Original Loan -->
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-slate-700 mb-1">Original Loan Amount</label>
                         <div class="relative">
@@ -93,7 +104,7 @@
 
                     <!-- Interest Rate -->
                     <div class="mb-4">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Interest Rate (%)</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Initial Interest Rate (%)</label>
                         <div class="relative">
                             <input type="number" id="interestRate" value="5.5" step="0.01" class="block w-full pl-3 pr-8 py-2 border border-slate-300 rounded-md sm:text-sm focus:ring-indigo-500 focus:border-indigo-500">
                             <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 text-sm">%</span>
@@ -119,7 +130,7 @@
 
                     <!-- Payment Amount -->
                     <div class="mb-2">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Payment Amount</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Initial Payment Amount</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 text-sm">$</span>
                             <input type="number" id="paymentAmount" value="2000" class="block w-full pl-7 pr-3 py-2 border border-slate-300 rounded-md sm:text-sm font-semibold text-indigo-700 focus:ring-indigo-500 focus:border-indigo-500">
@@ -129,52 +140,63 @@
                     <div id="minPaymentHint" class="text-xs text-slate-500 mb-4 bg-slate-50 p-2 rounded border border-slate-100">
                         Min to cover interest: <span id="interestOnlyVal" class="font-mono text-slate-700">--</span>
                     </div>
+
+                    <button type="button" onclick="calculate()" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                        Recalculate
+                    </button>
                 </div>
 
-                <!-- Lump Sum Prepayments -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
-                        <i data-lucide="piggy-bank" class="w-5 h-5 text-emerald-500"></i> Prepayments
-                    </h2>
-                    <p class="text-xs text-slate-500 mb-4">
-                        Max 15% of original loan per calendar year (<span id="maxLumpSumVal" class="font-mono font-bold">--</span>).
-                    </p>
-                    
-                    <div class="flex flex-col gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <input type="date" id="lumpSumDate" class="block w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white">
-                        <div class="flex gap-2">
-                            <div class="relative flex-grow">
-                                <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-slate-400 text-xs">$</span>
-                                <input type="number" id="lumpSumAmount" placeholder="Amount" class="block w-full pl-5 pr-2 py-1 text-sm border border-slate-300 rounded bg-white">
-                            </div>
-                            <button onclick="addLumpSum()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors">Add</button>
-                        </div>
-                    </div>
-
-                    <ul id="lumpSumList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></ul>
-                </div>
-
-                <button onclick="calculate()" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                    Recalculate Analysis
-                </button>
             </div>
 
-            <!-- VISUALIZATION AREA -->
-            <div class="lg:col-span-8 space-y-6">
+            <!-- RIGHT COLUMN: VISUALIZATION & ADVANCED INPUTS (Expanded width) -->
+            <div class="lg:col-span-9 space-y-6">
                 
-                <!-- KPI Cards -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div class="bg-white overflow-hidden shadow rounded-lg border-l-4 border-emerald-500 p-5">
-                        <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Interest Paid</dt>
-                        <dd id="totalInterest" class="mt-1 text-2xl font-bold text-slate-900">$0</dd>
+                <!-- Row 1: Advanced Inputs (Moved from Sidebar) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Prepayments -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full">
+                        <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
+                            <i data-lucide="piggy-bank" class="w-5 h-5 text-emerald-500"></i> Prepayments
+                        </h2>
+                        <p class="text-xs text-slate-500 mb-4">
+                            Max 15% of original loan/yr (<span id="maxLumpSumVal" class="font-mono font-bold">--</span>).
+                        </p>
+                        
+                        <div class="flex flex-col gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <input type="date" id="lumpSumDate" class="block w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white">
+                            <div class="flex gap-2">
+                                <div class="relative flex-grow">
+                                    <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-slate-400 text-xs">$</span>
+                                    <input type="number" id="lumpSumAmount" placeholder="Amount" class="block w-full pl-5 pr-2 py-1 text-sm border border-slate-300 rounded bg-white">
+                                </div>
+                                <button type="button" onclick="addLumpSum()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors">Add</button>
+                            </div>
+                        </div>
+                        <ul id="lumpSumList" class="space-y-2 max-h-32 overflow-y-auto pr-1"></ul>
                     </div>
-                    <div class="bg-white overflow-hidden shadow rounded-lg border-l-4 border-blue-500 p-5">
-                        <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Cost</dt>
-                        <dd id="totalCost" class="mt-1 text-2xl font-bold text-slate-900">$0</dd>
-                    </div>
-                    <div class="bg-white overflow-hidden shadow rounded-lg border-l-4 border-purple-500 p-5">
-                        <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Payoff Date</dt>
-                        <dd id="payoffDate" class="mt-1 text-2xl font-bold text-slate-900">--</dd>
+
+                    <!-- Scenario Adjustments -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full">
+                        <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
+                            <i data-lucide="calendar-clock" class="w-5 h-5 text-amber-500"></i> Renewal / Adjustment
+                        </h2>
+                        <p class="text-xs text-slate-500 mb-4">
+                            Schedule a future change in Rate or Payment.
+                        </p>
+                        
+                        <div class="flex flex-col gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <select id="adjType" class="block w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white mb-2">
+                                <option value="rate">New Interest Rate (%)</option>
+                                <option value="payment">New Payment Amount ($)</option>
+                            </select>
+                            <div class="flex gap-2">
+                                <input type="date" id="adjDate" class="block w-1/2 px-2 py-1 text-sm border border-slate-300 rounded bg-white">
+                                <input type="number" step="0.01" id="adjValue" placeholder="Val" class="block w-1/3 px-2 py-1 text-sm border border-slate-300 rounded bg-white">
+                                <button type="button" onclick="addAdjustment()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors">Add</button>
+                            </div>
+                        </div>
+
+                        <ul id="adjustmentList" class="space-y-2 max-h-32 overflow-y-auto pr-1"></ul>
                     </div>
                 </div>
 
@@ -188,7 +210,6 @@
 
                 <!-- D3 Charts Container -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-1">
-                    <!-- Tabs -->
                     <div class="border-b border-slate-200 px-4 pt-2">
                         <nav class="-mb-px flex space-x-6" aria-label="Tabs">
                             <button id="tab-balance" onclick="switchTab('balance')" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
@@ -200,9 +221,24 @@
                         </nav>
                     </div>
 
-                    <!-- CHART AREA -->
                     <div id="d3-container" class="chart-container w-full h-[500px] bg-white">
-                        <!-- SVG injected here by JS -->
+                        <!-- SVG injected here -->
+                    </div>
+                </div>
+
+                <!-- KPI Cards (Moved Below Graph) -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white overflow-hidden shadow rounded-lg border-l-4 border-emerald-500 p-5">
+                        <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Interest Paid</dt>
+                        <dd id="totalInterest" class="mt-1 text-2xl font-bold text-slate-900">$0</dd>
+                    </div>
+                    <div class="bg-white overflow-hidden shadow rounded-lg border-l-4 border-blue-500 p-5">
+                        <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Cost</dt>
+                        <dd id="totalCost" class="mt-1 text-2xl font-bold text-slate-900">$0</dd>
+                    </div>
+                    <div class="bg-white overflow-hidden shadow rounded-lg border-l-4 border-purple-500 p-5">
+                        <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Payoff Date</dt>
+                        <dd id="payoffDate" class="mt-1 text-2xl font-bold text-slate-900">--</dd>
                     </div>
                 </div>
 
@@ -239,183 +275,235 @@
         document.getElementById('startDate').value = today;
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
-        document.getElementById('lumpSumDate').value = nextYear.toISOString().split('T')[0];
+        const nextYearStr = nextYear.toISOString().split('T')[0];
+        document.getElementById('lumpSumDate').value = nextYearStr;
+        document.getElementById('adjDate').value = nextYearStr;
 
         let currentTab = 'balance'; 
         let globalData = null;
         let lumpSumPayments = []; 
+        let adjustments = []; 
 
-        // --- INPUT HANDLERS ---
+        // --- LIST MANAGEMENT ---
         function addLumpSum() {
             const dateInput = document.getElementById('lumpSumDate');
             const amountInput = document.getElementById('lumpSumAmount');
             if (!dateInput.value || !amountInput.value || parseFloat(amountInput.value) <= 0) return;
-
-            lumpSumPayments.push({
-                id: Date.now(),
-                date: dateInput.value,
-                amount: parseFloat(amountInput.value)
-            });
+            lumpSumPayments.push({ id: Date.now(), date: dateInput.value, amount: parseFloat(amountInput.value) });
             lumpSumPayments.sort((a, b) => new Date(a.date) - new Date(b.date));
-            
             amountInput.value = ''; 
             renderLumpSumList();
             calculate();
         }
-
         function removeLumpSum(id) {
             lumpSumPayments = lumpSumPayments.filter(p => p.id !== id);
             renderLumpSumList();
             calculate();
         }
-
         function renderLumpSumList() {
             const list = document.getElementById('lumpSumList');
             list.innerHTML = '';
             lumpSumPayments.forEach(p => {
                 const li = document.createElement('li');
                 li.className = "flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm";
-                li.innerHTML = `
-                    <div><span class="font-medium text-slate-700">${p.date}</span><span class="text-emerald-600 font-mono ml-2">+${formatCurrency(p.amount)}</span></div>
-                    <button onclick="removeLumpSum(${p.id})" class="text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                `;
+                li.innerHTML = `<div><span class="font-medium text-slate-700">${p.date}</span><span class="text-emerald-600 font-mono ml-2">+${formatCurrency(p.amount)}</span></div><button type="button" onclick="removeLumpSum(${p.id})" class="text-slate-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
                 list.appendChild(li);
             });
             lucide.createIcons();
         }
 
-        // --- CALCULATION LOGIC ---
+        function addAdjustment() {
+            const type = document.getElementById('adjType').value;
+            const date = document.getElementById('adjDate').value;
+            const val = document.getElementById('adjValue').value;
+            if (!date || !val) return;
+            adjustments.push({ id: Date.now(), date: date, type: type, value: parseFloat(val) });
+            adjustments.sort((a, b) => new Date(a.date) - new Date(b.date));
+            document.getElementById('adjValue').value = '';
+            renderAdjustmentList();
+            calculate();
+        }
+        function removeAdjustment(id) {
+            adjustments = adjustments.filter(p => p.id !== id);
+            renderAdjustmentList();
+            calculate();
+        }
+        function renderAdjustmentList() {
+            const list = document.getElementById('adjustmentList');
+            list.innerHTML = '';
+            adjustments.forEach(p => {
+                const li = document.createElement('li');
+                li.className = "flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm";
+                const label = p.type === 'rate' ? `${p.value}% Rate` : `${formatCurrency(p.value)} Pmt`;
+                li.innerHTML = `<div><span class="font-medium text-slate-700">${p.date}</span><span class="text-amber-600 font-mono ml-2">${label}</span></div><button type="button" onclick="removeAdjustment(${p.id})" class="text-slate-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+                list.appendChild(li);
+            });
+            lucide.createIcons();
+        }
+
+        // --- CORE CALCULATION ---
         function calculate() {
             const originalLoan = parseFloat(document.getElementById('originalLoanAmount').value);
-            const currentBalance = parseFloat(document.getElementById('loanAmount').value);
-            const annualRate = parseFloat(document.getElementById('interestRate').value);
-            const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+            const startBalance = parseFloat(document.getElementById('loanAmount').value);
+            const startRate = parseFloat(document.getElementById('interestRate').value);
+            const startPayment = parseFloat(document.getElementById('paymentAmount').value);
             const frequency = parseInt(document.getElementById('frequency').value);
             const startDateRaw = document.getElementById('startDate').value;
             
-            if (isNaN(originalLoan) || isNaN(currentBalance) || isNaN(annualRate) || isNaN(paymentAmount) || !startDateRaw) return;
+            if (isNaN(originalLoan) || isNaN(startBalance) || isNaN(startRate) || isNaN(startPayment) || !startDateRaw) return;
 
+            // Max Lump Sum Limit
             const maxAnnualLumpSum = originalLoan * 0.15;
             document.getElementById('maxLumpSumVal').innerText = formatCurrency(maxAnnualLumpSum);
 
-            const ratePerPeriod = (annualRate / 100) / frequency;
-            let balance = currentBalance;
-            
-            // --- DATE FIX: Force Noon (12:00:00) to avoid DST/Midnight shifting issues ---
+            // Dynamic State Variables
+            let currentBalance = startBalance;
+            let currentRate = startRate;
+            let currentPayment = startPayment;
+            let ratePerPeriod = (currentRate / 100) / frequency;
+
+            // Date setup (Noon fix)
             const [y, m, d] = startDateRaw.split('-').map(Number);
             let currentDate = new Date(y, m - 1, d, 12, 0, 0);
             const startAnchorDay = currentDate.getDate();
 
-            const timeSeries = [{ date: new Date(currentDate), balance: balance }];
-            let yearlyData = [];
-            
+            // Queues
             let lumpSumQueue = [...lumpSumPayments];
+            let adjQueue = [...adjustments];
+
+            // Output Data - No 'Start' Event
+            const timeSeries = [{ date: new Date(currentDate), balance: currentBalance, event: null }];
+            let yearlyData = [];
             let currentYearForLumpSum = currentDate.getFullYear();
             let lumpSumUsedInYear = 0;
-
-            const minInterestPayment = currentBalance * ratePerPeriod;
-            document.getElementById('interestOnlyVal').innerText = formatCurrency(minInterestPayment);
             
+            let totalInterest = 0;
+            let totalPrincipal = 0;
+            
+            // Yearly Accumulators
+            let yearStart = currentDate.getFullYear();
+            let yrInterest = 0;
+            let yrPrincipal = 0;
+            let yrLumpSum = 0;
+            let yrCount = 0;
+
+            // Check initial min payment
+            const minInterest = startBalance * ((startRate/100)/frequency);
+            document.getElementById('interestOnlyVal').innerText = formatCurrency(minInterest);
             const warningBox = document.getElementById('warningBox');
-            if (paymentAmount <= minInterestPayment && lumpSumPayments.length === 0) {
+            if(currentPayment <= minInterest && lumpSumPayments.length === 0 && adjustments.length === 0) {
                 warningBox.classList.remove('hidden');
                 updateKPIs(0, 0, "Never");
                 clearD3();
-                return; 
+                return;
             } else {
                 warningBox.classList.add('hidden');
             }
 
-            let totalInterest = 0;
-            let totalPrincipal = 0;
-            let currentYear = currentDate.getFullYear();
-            let yearInterest = 0;
-            let yearPrincipal = 0;
-            let yearLumpSum = 0;
-            let paymentsInYear = 0; // NEW: Track payments per year
-
             let safetyCounter = 0;
-            const maxPeriods = frequency * 100; 
+            const maxPeriods = frequency * 100; // 100 years cap
 
-            while (balance > 0 && safetyCounter < maxPeriods) {
+            while (currentBalance > 0 && safetyCounter < maxPeriods) {
                 const loopDateObj = new Date(currentDate);
 
+                // 1. Reset Annual Lump Limit
                 if (loopDateObj.getFullYear() !== currentYearForLumpSum) {
                     currentYearForLumpSum = loopDateObj.getFullYear();
                     lumpSumUsedInYear = 0;
                 }
 
-                let appliedLumpSumThisPeriod = 0;
-                while (lumpSumQueue.length > 0 && new Date(lumpSumQueue[0].date) <= loopDateObj) {
-                    const p = lumpSumQueue.shift();
-                    const availableCap = maxAnnualLumpSum - lumpSumUsedInYear;
-                    let amountToApply = p.amount;
-                    if (amountToApply > availableCap) amountToApply = availableCap;
-
-                    if (amountToApply > 0) {
-                        if (balance < amountToApply) amountToApply = balance;
-                        balance -= amountToApply;
-                        lumpSumUsedInYear += amountToApply;
-                        appliedLumpSumThisPeriod += amountToApply;
-                        totalPrincipal += amountToApply;
+                // 2. Process Adjustments (Rate/Payment Changes)
+                let eventType = null;
+                while (adjQueue.length > 0 && new Date(adjQueue[0].date) <= loopDateObj) {
+                    const adj = adjQueue.shift();
+                    if (adj.type === 'rate') {
+                        currentRate = adj.value;
+                        ratePerPeriod = (currentRate / 100) / frequency;
+                        // Only show rate value, simple %
+                        eventType = `${currentRate}%`;
+                    } else if (adj.type === 'payment') {
+                        currentPayment = adj.value;
+                        // No visual marker for Payment changes per user request
                     }
                 }
 
-                if (balance > 0) {
-                    let interestPart = balance * ratePerPeriod;
-                    let principalPart = paymentAmount - interestPart;
-                    if (balance < principalPart) principalPart = balance;
-                    
-                    balance -= principalPart;
-                    if (balance < 0) balance = 0;
+                // 3. Process Lump Sums
+                let appliedLump = 0;
+                while (lumpSumQueue.length > 0 && new Date(lumpSumQueue[0].date) <= loopDateObj) {
+                    const p = lumpSumQueue.shift();
+                    const cap = maxAnnualLumpSum - lumpSumUsedInYear;
+                    let amt = p.amount;
+                    if (amt > cap) amt = cap; 
+
+                    if (amt > 0) {
+                        if (currentBalance < amt) amt = currentBalance;
+                        currentBalance -= amt;
+                        lumpSumUsedInYear += amt;
+                        appliedLump += amt;
+                        totalPrincipal += amt;
+                    }
+                }
+
+                // 4. Process Regular Payment
+                if (currentBalance > 0) {
+                    let interestPart = currentBalance * ratePerPeriod;
+                    let principalPart = currentPayment - interestPart;
+
+                    if (currentBalance + interestPart < currentPayment) {
+                        interestPart = currentBalance * ratePerPeriod; 
+                        principalPart = currentBalance;
+                        currentPayment = principalPart + interestPart;
+                    }
+
+                    currentBalance -= principalPart;
+                    if (currentBalance < 0.01) currentBalance = 0;
 
                     totalInterest += interestPart;
                     totalPrincipal += principalPart;
-                    yearInterest += interestPart;
-                    yearPrincipal += principalPart;
-                    paymentsInYear++; // Increment payment count
+
+                    yrInterest += interestPart;
+                    yrPrincipal += principalPart;
+                    yrCount++;
                 }
 
-                yearLumpSum += appliedLumpSumThisPeriod;
+                yrLumpSum += appliedLump;
                 advanceDate(currentDate, frequency, startAnchorDay, safetyCounter);
 
-                timeSeries.push({ date: new Date(currentDate), balance: balance });
+                // Snapshot for Chart
+                timeSeries.push({ 
+                    date: new Date(currentDate), 
+                    balance: currentBalance, 
+                    event: eventType 
+                });
 
-                if (currentDate.getFullYear() !== currentYear || balance === 0) {
+                // Yearly Aggregation
+                if (currentDate.getFullYear() !== yearStart || currentBalance === 0) {
                     yearlyData.push({
-                        year: currentYear,
-                        interest: yearInterest,
-                        principal: yearPrincipal,
-                        lumpSum: yearLumpSum,
-                        balance: balance,
-                        count: paymentsInYear // Store count
+                        year: yearStart,
+                        interest: yrInterest,
+                        principal: yrPrincipal,
+                        lumpSum: yrLumpSum,
+                        balance: currentBalance === 0 && currentDate.getFullYear() === yearStart ? 0 : timeSeries[timeSeries.length-2].balance,
+                        count: yrCount
                     });
-                    currentYear = currentDate.getFullYear();
-                    yearInterest = 0;
-                    yearPrincipal = 0;
-                    yearLumpSum = 0;
-                    paymentsInYear = 0;
+                    yearStart = currentDate.getFullYear();
+                    yrInterest = 0; yrPrincipal = 0; yrLumpSum = 0; yrCount = 0;
                 }
+
                 safetyCounter++;
             }
 
-            if (yearlyData.length === 0 || yearlyData[yearlyData.length-1].year !== currentYear) {
-                 if(yearInterest > 0 || yearPrincipal > 0 || yearLumpSum > 0) {
-                    yearlyData.push({
-                        year: currentYear,
-                        interest: yearInterest,
-                        principal: yearPrincipal,
-                        lumpSum: yearLumpSum,
-                        balance: 0,
-                        count: paymentsInYear
-                    });
+            // Final partial year
+            if (yearlyData.length === 0 || yearlyData[yearlyData.length-1].year !== yearStart) {
+                 if(yrInterest > 0 || yrPrincipal > 0 || yrLumpSum > 0) {
+                    yearlyData.push({ year: yearStart, interest: yrInterest, principal: yrPrincipal, lumpSum: yrLumpSum, balance: 0, count: yrCount });
                  }
             }
 
-            const lastDate = timeSeries[timeSeries.length - 1].date;
-            updateKPIs(totalInterest, totalPrincipal + totalInterest, lastDate);
-            
-            globalData = { timeSeries, yearlyData };
+            const events = timeSeries.filter(d => d.event);
+
+            updateKPIs(totalInterest, totalPrincipal + totalInterest, timeSeries[timeSeries.length-1].date);
+            globalData = { timeSeries, yearlyData, events };
             drawD3();
             renderTable(yearlyData);
         }
@@ -431,35 +519,27 @@
         function updateKPIs(interest, cost, dateObj) {
             document.getElementById('totalInterest').innerText = formatCurrency(interest);
             document.getElementById('totalCost').innerText = formatCurrency(cost);
-            const formattedDate = dateObj === "Never" ? "Never" : dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-            document.getElementById('payoffDate').innerText = formattedDate;
+            document.getElementById('payoffDate').innerText = dateObj === "Never" ? "Never" : dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         }
-
-        function formatCurrency(val) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(val);
-        }
+        function formatCurrency(val) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(val); }
 
         // --- D3 RENDERING ---
-        function clearD3() {
-            d3.select("#d3-container").selectAll("*").remove();
-        }
+        function clearD3() { d3.select("#d3-container").selectAll("*").remove(); }
 
         function drawD3() {
             if (!globalData) return;
             clearD3();
-
             const container = document.getElementById('d3-container');
             const width = container.clientWidth;
             const height = container.clientHeight;
-            const margin = { top: 40, right: 50, bottom: 30, left: 60 }; // Increased top margin for Legend
+            const margin = { top: 40, right: 50, bottom: 30, left: 60 };
             const innerWidth = width - margin.left - margin.right;
             const innerHeight = height - margin.top - margin.bottom;
 
             const svg = d3.select("#d3-container").append("svg").attr("width", width).attr("height", height);
             const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-            // --- SCALES ---
-            let xScale, yScale, dataLayers, xDomain;
+            let xScale, yScale;
 
             if (currentTab === 'balance') {
                 const data = globalData.timeSeries;
@@ -477,18 +557,41 @@
                 const line = d3.line().x(d => xScale(d.date)).y(d => yScale(d.balance));
                 g.append("path").datum(data).attr("fill", "none").attr("stroke", "#4f46e5").attr("stroke-width", 2.5).attr("d", line);
 
+                // --- Event Markers ---
+                if (globalData.events) {
+                    globalData.events.forEach(ev => {
+                        const xPos = xScale(ev.date);
+                        g.append("line")
+                            .attr("class", "event-marker-line")
+                            .attr("x1", xPos).attr("x2", xPos)
+                            .attr("y1", innerHeight).attr("y2", yScale(ev.balance));
+                        g.append("circle")
+                            .attr("class", "event-marker-dot")
+                            .attr("cx", xPos).attr("cy", yScale(ev.balance))
+                            .attr("r", 4);
+                        g.append("text")
+                            .attr("x", xPos)
+                            .attr("y", yScale(ev.balance) - 10)
+                            .attr("text-anchor", "middle")
+                            .attr("fill", "#d97706")
+                            .attr("font-size", "10px")
+                            .attr("font-weight", "bold")
+                            .text(ev.event);
+                    });
+                }
+
             } else {
                 const data = globalData.yearlyData;
                 const keys = ['principal', 'lumpSum', 'interest'];
                 const stack = d3.stack().keys(keys);
-                dataLayers = stack(data);
-                xDomain = data.map(d => d.year);
+                const layers = stack(data);
+                const xDomain = data.map(d => d.year);
                 xScale = d3.scaleBand().domain(xDomain).range([0, innerWidth]).padding(0.2);
-                const maxVal = d3.max(dataLayers, layer => d3.max(layer, d => d[1]));
+                const maxVal = d3.max(layers, layer => d3.max(layer, d => d[1]));
                 yScale = d3.scaleLinear().domain([0, maxVal * 1.05]).range([innerHeight, 0]);
                 
                 const colorMap = { 'principal': '#10b981', 'lumpSum': '#059669', 'interest': '#f43f5e' };
-                g.selectAll(".layer").data(dataLayers).join("g").attr("fill", d => colorMap[d.key])
+                g.selectAll(".layer").data(layers).join("g").attr("fill", d => colorMap[d.key])
                     .selectAll("rect").data(d => d).join("rect")
                     .attr("x", d => xScale(d.data.year)).attr("y", d => yScale(d[1]))
                     .attr("height", d => yScale(d[0]) - yScale(d[1])).attr("width", xScale.bandwidth());
@@ -499,13 +602,10 @@
             g.append("g").attr("class", "axis").attr("transform", `translate(0,${innerHeight})`).call(xAxis);
             g.append("g").attr("class", "axis").call(yAxis);
 
-            // --- DYNAMIC LEGEND (Status Line) ---
-            const legendG = svg.append("g").attr("class", "chart-legend").attr("transform", `translate(${margin.left}, 20)`); // Top-left in SVG coords
-            
-            // Use a foreignObject or just text? Text is cleaner for simple lines.
+            // --- CROSSHAIR ---
+            const legendG = svg.append("g").attr("class", "chart-legend").attr("transform", `translate(${margin.left}, 20)`);
             const legendText = legendG.append("text").attr("dominant-baseline", "middle");
             
-            // --- CROSSHAIR ---
             const crosshairG = svg.append("g").attr("class", "crosshair-group");
             const vLine = crosshairG.append("line").attr("class", "crosshair").attr("y1", margin.top).attr("y2", height - margin.bottom);
             const hLine = crosshairG.append("line").attr("class", "crosshair").attr("x1", margin.left).attr("x2", width - margin.right);
@@ -530,7 +630,7 @@
                     xLabelG.attr("opacity", 0); yLabelG.attr("opacity", 0);
                     d3.selectAll(".crosshair-label-bg").style("opacity", 0);
                     d3.selectAll(".crosshair-label-text").style("opacity", 0);
-                    legendText.text(""); // Clear legend
+                    legendText.text("");
                 })
                 .on("mousemove", function(event) {
                     const [mx, my] = d3.pointer(event);
@@ -540,78 +640,59 @@
                     hLine.attr("y1", svgY).attr("y2", svgY);
 
                     let xValText, yValText;
-                    
                     if (currentTab === 'balance') {
                         const dateVal = xScale.invert(mx);
                         xValText = dateVal.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                        // Update Legend for Balance
-                        // Find closest data point
                         const bisect = d3.bisector(d => d.date).left;
                         const idx = bisect(globalData.timeSeries, dateVal, 1);
-                        const d0 = globalData.timeSeries[idx - 1];
-                        const d1 = globalData.timeSeries[idx];
-                        const d = (d1 && d0) ? (dateVal - d0.date > d1.date - dateVal ? d1 : d0) : (d0 || d1);
+                        const d = globalData.timeSeries[idx];
                         if (d) {
                              legendText.text("");
                              legendText.append("tspan").attr("class", "legend-label").text("Date: ");
                              legendText.append("tspan").attr("class", "legend-value").text(d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
-                             legendText.append("tspan").text("    "); // Spacer
+                             legendText.append("tspan").text("    ");
                              legendText.append("tspan").attr("class", "legend-label").text("Balance: ");
                              legendText.append("tspan").attr("class", "legend-value").attr("fill", "#4f46e5").text(formatCurrency(d.balance));
                         }
-
                     } else {
                         const eachBand = xScale.step();
                         const index = Math.floor(mx / eachBand);
                         const domain = xScale.domain();
                         const year = domain[index];
                         xValText = year || "";
-                        
-                        // Update Legend for Breakdown
                         const d = globalData.yearlyData.find(yd => yd.year === year);
                         if (d) {
                             legendText.text("");
                             legendText.append("tspan").attr("class", "legend-label").text("Year: ");
                             legendText.append("tspan").attr("class", "legend-value").text(d.year);
-                            
                             legendText.append("tspan").text("   ");
                             legendText.append("tspan").attr("fill", "#10b981").text("● ");
-                            legendText.append("tspan").attr("class", "legend-label").text("Principal: ");
+                            legendText.append("tspan").attr("class", "legend-label").text("Prin: ");
                             legendText.append("tspan").attr("class", "legend-value").text(formatCurrency(d.principal));
-                            
                             legendText.append("tspan").text("   ");
                             legendText.append("tspan").attr("fill", "#f43f5e").text("● ");
-                            legendText.append("tspan").attr("class", "legend-label").text("Interest: ");
+                            legendText.append("tspan").attr("class", "legend-label").text("Int: ");
                             legendText.append("tspan").attr("class", "legend-value").text(formatCurrency(d.interest));
-
                             legendText.append("tspan").text("   ");
-                            legendText.append("tspan").attr("class", "legend-label").text("Payments: ");
+                            legendText.append("tspan").attr("class", "legend-label").text("Pmts: ");
                             legendText.append("tspan").attr("class", "legend-value").attr("fill", "#1e293b").text(d.count);
                         }
                     }
-
                     const currencyVal = yScale.invert(my);
                     yValText = formatCurrencyShort(currencyVal);
-
                     xLabelText.text(xValText);
                     const xBBox = xLabelText.node().getBBox();
                     xLabelRect.attr("width", xBBox.width + 16).attr("x", -xBBox.width/2 - 8);
                     xLabelG.attr("transform", `translate(${svgX}, ${height - margin.bottom + 12})`);
-
                     yLabelText.text(yValText);
                     const yBBox = yLabelText.node().getBBox();
                     yLabelRect.attr("width", yBBox.width + 12).attr("x", 0);
                     yLabelG.attr("transform", `translate(${margin.left - (yBBox.width + 12) - 5}, ${svgY - 10})`);
                 });
         }
+        function formatCurrencyShort(val) { if (val >= 1000000) return '$' + (val/1000000).toFixed(2) + 'M'; if (val >= 1000) return '$' + (val/1000).toFixed(0) + 'k'; return '$' + val.toFixed(0); }
 
-        function formatCurrencyShort(val) {
-            if (val >= 1000000) return '$' + (val/1000000).toFixed(2) + 'M';
-            if (val >= 1000) return '$' + (val/1000).toFixed(0) + 'k';
-            return '$' + val.toFixed(0);
-        }
-
-        // --- UTILS ---
+        // --- EVENTS ---
         function switchTab(tab) {
             currentTab = tab;
             const btnBalance = document.getElementById('tab-balance');
@@ -627,35 +708,21 @@
             }
             drawD3();
         }
-
         function toggleTable() {
             const container = document.getElementById('tableContainer');
             const icon = document.getElementById('tableIcon');
-            if (container.classList.contains('hidden')) {
-                container.classList.remove('hidden');
-                icon.classList.add('rotate-180');
-            } else {
-                container.classList.add('hidden');
-                icon.classList.remove('rotate-180');
-            }
+            if (container.classList.contains('hidden')) { container.classList.remove('hidden'); icon.classList.add('rotate-180'); } 
+            else { container.classList.add('hidden'); icon.classList.remove('rotate-180'); }
         }
-
         function renderTable(data) {
             const tbody = document.getElementById('amortizationBody');
             tbody.innerHTML = '';
             data.forEach(row => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-6 py-3 text-slate-900 font-medium">${row.year}</td>
-                    <td class="px-6 py-3 text-right text-rose-600 font-mono">${formatCurrency(row.interest)}</td>
-                    <td class="px-6 py-3 text-right text-emerald-600 font-mono">${formatCurrency(row.principal)}</td>
-                    <td class="px-6 py-3 text-right text-emerald-800 font-bold font-mono">${row.lumpSum > 0 ? formatCurrency(row.lumpSum) : '-'}</td>
-                    <td class="px-6 py-3 text-right text-slate-600 font-mono">${formatCurrency(row.balance)}</td>
-                `;
+                tr.innerHTML = `<td class="px-6 py-3 text-slate-900 font-medium">${row.year}</td><td class="px-6 py-3 text-right text-rose-600 font-mono">${formatCurrency(row.interest)}</td><td class="px-6 py-3 text-right text-emerald-600 font-mono">${formatCurrency(row.principal)}</td><td class="px-6 py-3 text-right text-emerald-800 font-bold font-mono">${row.lumpSum > 0 ? formatCurrency(row.lumpSum) : '-'}</td><td class="px-6 py-3 text-right text-slate-600 font-mono">${formatCurrency(row.balance)}</td>`;
                 tbody.appendChild(tr);
             });
         }
-
         function resetDefaults() {
             document.getElementById('originalLoanAmount').value = 400000;
             document.getElementById('loanAmount').value = 300000;
@@ -664,15 +731,15 @@
             document.getElementById('frequency').value = 12;
             document.getElementById('startDate').value = today;
             lumpSumPayments = [];
+            adjustments = [];
             renderLumpSumList();
+            renderAdjustmentList();
             calculate();
         }
-
         const inputs = ['originalLoanAmount', 'loanAmount', 'interestRate', 'paymentAmount', 'frequency', 'startDate'];
         inputs.forEach(id => document.getElementById(id).addEventListener('input', calculate));
         window.addEventListener('resize', drawD3);
-        
-        calculate(); // Initial Run
+        calculate(); 
     </script>
 </body>
 </html>
