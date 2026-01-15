@@ -173,6 +173,49 @@
         );
       };
 
+      const NumberInput = ({ value, onChange, className, ...props }) => {
+        const [localValue, setLocalValue] = useState("");
+        const [isFocused, setIsFocused] = useState(false);
+
+        useEffect(() => {
+          if (!isFocused) {
+            setLocalValue(value === undefined || value === null ? "" : value.toString());
+          }
+        }, [value, isFocused]);
+
+        const handleFocus = () => {
+          setIsFocused(true);
+          setLocalValue(value === 0 ? "" : value.toString());
+        };
+
+        const handleBlur = () => {
+          setIsFocused(false);
+        };
+
+        const handleChange = (e) => {
+          const raw = e.target.value;
+          setLocalValue(raw);
+          if (raw === "") {
+             onChange(0);
+          } else {
+             const num = parseFloat(raw);
+             if (!isNaN(num)) onChange(num);
+          }
+        };
+
+        return (
+          <input
+            type="number"
+            value={localValue}
+            onChange={handleChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            className={className}
+            {...props}
+          />
+        );
+      };
+
       // --- UTILS: CALCULATIONS ---
       
       const calculatePayment = (principal, ratePercent, years, frequencyType) => {
@@ -985,11 +1028,9 @@
                                       <label className="block text-sm font-medium text-slate-700 mb-1">Mortgage Amount</label>
                                       <div className="relative">
                                           <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">$</span>
-                                          <input 
-                                              type="number" 
-                                              min="0"
+                                          <MoneyInput 
                                               value={calcLoan}
-                                              onChange={(e) => setCalcLoan(Math.max(0, Number(e.target.value)))}
+                                              onChange={(val) => setCalcLoan(Math.max(0, val))}
                                               className="block w-full pl-7 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg" 
                                           />
                                       </div>
@@ -998,11 +1039,9 @@
                                   <div>
                                       <label className="block text-sm font-medium text-slate-700 mb-1">Interest Rate</label>
                                       <div className="relative">
-                                          <input 
-                                              type="number" 
-                                              min="0"
+                                          <NumberInput 
                                               value={calcRate}
-                                              onChange={(e) => setCalcRate(Math.max(0, Number(e.target.value)))}
+                                              onChange={(val) => setCalcRate(Math.max(0, val))}
                                               step="0.01"
                                               className="block w-full pl-3 pr-8 py-3 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg" 
                                           />
@@ -1015,12 +1054,9 @@
                                       <div>
                                           <label className="block text-sm font-medium text-slate-700 mb-1">Amortization</label>
                                           <div className="relative">
-                                              <input 
-                                                  type="number" 
-                                                  min="1"
-                                                  max="100"
+                                              <NumberInput 
                                                   value={calcYears}
-                                                  onChange={(e) => setCalcYears(Math.max(1, Number(e.target.value)))}
+                                                  onChange={(val) => setCalcYears(Math.max(1, val))}
                                                   className="block w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg" 
                                               />
                                               <span className="absolute inset-y-0 right-0 pr-8 flex items-center text-slate-400 text-sm pointer-events-none">Yrs</span>
