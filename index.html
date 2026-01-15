@@ -1,13 +1,17 @@
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mortgage Insight Tool</title>
+    
+    <!-- Styles & Fonts -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load D3.js -->
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
         width: 8px;
@@ -23,765 +27,309 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8;
       }
-
-      .chart-container {
-        position: relative;
-        overflow: hidden;
-        cursor: crosshair;
-      }
-
-      /* D3 Specific Styles */
-      .axis path,
-      .axis line {
-        stroke: #e2e8f0;
-      }
-      .axis text {
-        font-family: ui-sans-serif, system-ui, sans-serif;
-        fill: #64748b;
-        font-size: 11px;
-      }
-      .grid-line {
-        stroke: #f1f5f9;
-        stroke-width: 1;
-      }
-
-      .crosshair {
-        stroke: #64748b;
-        stroke-width: 1px;
-        stroke-dasharray: 4 4;
-        pointer-events: none;
-        opacity: 0;
-      }
-      .crosshair-label-bg {
-        fill: #1e293b;
-        opacity: 0;
-      }
-      .crosshair-label-text {
-        fill: #fff;
-        font-size: 11px;
-        font-family: monospace;
-        opacity: 0;
-        font-weight: 600;
-      }
-
-      /* Markers for Adjustments */
-      .event-marker-line {
-        stroke: #f59e0b; /* Amber-500 */
-        stroke-width: 1.5px;
-        stroke-dasharray: 3 3;
-        opacity: 0.6;
-      }
-      .event-marker-dot {
-        fill: #f59e0b;
-        stroke: #fff;
-        stroke-width: 2px;
-      }
-
-      .chart-legend {
-        font-family: ui-sans-serif, system-ui, sans-serif;
-        font-size: 12px;
-        pointer-events: none;
-      }
-      .legend-label {
-        fill: #64748b;
-        font-weight: 500;
-      }
-      .legend-value {
-        font-weight: 600;
-        font-family: monospace;
-      }
-
-      .overlay {
-        fill: none;
-        pointer-events: all;
-      }
-
-      /* Toggle Checkbox Style */
-      .toggle-checkbox {
-        appearance: none;
-        background-color: #fff;
-        margin: 0;
-        font: inherit;
-        color: currentColor;
-        width: 1.15em;
-        height: 1.15em;
-        border: 1px solid #cbd5e1;
-        border-radius: 0.25em;
-        display: grid;
-        place-content: center;
-        cursor: pointer;
-      }
-      .toggle-checkbox::before {
-        content: '';
-        width: 0.65em;
-        height: 0.65em;
-        transform: scale(0);
-        transition: 120ms transform ease-in-out;
-        box-shadow: inset 1em 1em white;
-        transform-origin: center;
-        clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-      }
-      .toggle-checkbox:checked {
-        background-color: #4f46e5;
-        border-color: #4f46e5;
-      }
-      .toggle-checkbox:checked::before {
-        transform: scale(1);
-      }
     </style>
+
+    <!-- Dependencies (UMD) -->
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
   </head>
-  <body
-    class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col"
-  >
-    <!-- Header -->
-    <header
-      class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm"
-    >
-      <div
-        class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between"
-      >
-        <div class="flex items-center gap-2">
-          <i data-lucide="landmark" class="text-indigo-600 w-6 h-6"></i>
-          <h1 class="text-xl font-bold text-slate-900">
-            Mortgage<span class="text-indigo-600">Tool</span>
-          </h1>
-        </div>
-        <button
-          type="button"
-          onclick="resetDefaults()"
-          class="text-sm text-slate-500 hover:text-indigo-600 transition-colors flex items-center gap-1"
+  <body class="bg-slate-100 text-slate-800 antialiased">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      // Check if libraries loaded correctly
+      if (!window.React || !window.ReactDOM) {
+        document.body.innerHTML = '<div class="p-4 text-red-600">Error: React failed to load. Please check your internet connection.</div>';
+        throw new Error("React not loaded");
+      }
+
+      const { useState, useMemo, useEffect, useRef } = React;
+
+      // --- INLINE ICONS (Replaces Lucide dependency) ---
+      const IconBase = ({ children, className, ...props }) => (
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="24" 
+          height="24" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className={className}
+          {...props}
         >
-          <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset
-        </button>
-      </div>
-    </header>
+          {children}
+        </svg>
+      );
 
-    <main class="flex-grow p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-      <!-- Main Grid Layout -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        <!-- LEFT COLUMN: CORE PARAMS -->
-        <!-- Uses h-full so it respects items-stretch but doesn't force growth beyond content if right side is shorter (which it won't be now) -->
-        <div class="lg:col-span-3 flex flex-col">
-          <div
-            class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full"
-          >
-            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-              <i data-lucide="sliders" class="w-5 h-5 text-slate-400"></i>
-              Parameters
-            </h2>
+      const Landmark = (props) => (
+        <IconBase {...props}>
+          <line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 2 7 22 7 12 2"/>
+        </IconBase>
+      );
 
-            <!-- Original Loan -->
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-slate-700 mb-1"
-                >Original Loan Amount</label
-              >
-              <div class="relative">
-                <span
-                  class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 text-sm"
-                  >$</span
-                >
-                <input
-                  type="number"
-                  id="originalLoanAmount"
-                  value="400000"
-                  class="block w-full pl-7 pr-3 py-2 border border-slate-300 rounded-md sm:text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <p class="mt-1 text-xs text-slate-500">
-                Used for 15% prepayment limit calculation.
-              </p>
-            </div>
+      const ArrowRight = (props) => (
+        <IconBase {...props}>
+          <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+        </IconBase>
+      );
 
-            <!-- Current Balance -->
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-slate-700 mb-1"
-                >Current Outstanding Balance</label
-              >
-              <div class="relative">
-                <span
-                  class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 text-sm"
-                  >$</span
-                >
-                <input
-                  type="number"
-                  id="loanAmount"
-                  value="300000"
-                  class="block w-full pl-7 pr-3 py-2 border border-slate-300 rounded-md sm:text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
+      const Sliders = (props) => (
+        <IconBase {...props}>
+          <line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/>
+        </IconBase>
+      );
 
-            <!-- Interest Rate -->
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-slate-700 mb-1"
-                >Initial Interest Rate (%)</label
-              >
-              <div class="relative">
-                <input
-                  type="number"
-                  id="interestRate"
-                  value="5.5"
-                  step="0.01"
-                  class="block w-full pl-3 pr-8 py-2 border border-slate-300 rounded-md sm:text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <span
-                  class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 text-sm"
-                  >%</span
-                >
-              </div>
-            </div>
+      const AlertCircle = (props) => (
+        <IconBase {...props}>
+          <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
+        </IconBase>
+      );
 
-            <!-- Start Date -->
-            <div class="mb-4">
-              <label class="">Start Date</label>
-              <input
-                type="date"
-                id="startDate"
-                class="block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+      const PiggyBank = (props) => (
+        <IconBase {...props}>
+          <path d="M19 5c-1.5 0-2.8.6-3.5 1.5A10.3 10.3 0 0 0 9 5.2c-.9.1-2.5.5-4 2.2a.5.5 0 0 0 0 .6l.3.4a.5.5 0 0 0 .6 0c.9-.5 1.7-.6 2.5-.5.8.1 1.2.6 1.4.7.7.7.9 1.7.5 3-1.6 4.9.4 6.8 3.7 6.8 1.9 0 3.8-1 5.3-2.8l2-2.3c.3-.3.6-.5.9-.6.8-.2 1.4-.8 1.4-1.6v-3c0-1.7-1.3-3-3-3z"/>
+          <path d="M16 9h.01"/><path d="M8 14h.01"/><path d="M7 16h.01"/><path d="M11 17h.01"/>
+        </IconBase>
+      );
 
-            <!-- Frequency -->
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-slate-700 mb-1"
-                >Payment Frequency</label
-              >
-              <select
-                id="frequency"
-                class="block text-sm font-medium text-slate-700 mb-1"
-              >
-                <option value="12">Monthly (12x/yr)</option>
-                <option value="24">Semi-Monthly (24x/yr)</option>
-                <option value="26">Bi-Weekly / Rapid (26x/yr)</option>
-                <option value="52">Weekly (52x/yr)</option>
-              </select>
-            </div>
+      const CalendarClock = (props) => (
+        <IconBase {...props}>
+          <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.25V14"/><path d="M22 16a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z"/>
+        </IconBase>
+      );
 
-            <!-- Payment Amount -->
-            <div class="mb-2">
-              <label class="block text-sm font-medium text-slate-700 mb-1"
-                >Initial Payment Amount</label
-              >
-              <div class="relative">
-                <span
-                  class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 text-sm"
-                  >$</span
-                >
-                <input
-                  type="number"
-                  id="paymentAmount"
-                  value="2000"
-                  class="block w-full pl-7 pr-3 py-2 border border-slate-300 rounded-md sm:text-sm font-semibold text-indigo-700 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
+      const RotateCcw = (props) => (
+        <IconBase {...props}>
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+        </IconBase>
+      );
 
-            <div
-              id="minPaymentHint"
-              class="text-xs text-slate-500 mb-4 bg-slate-50 p-2 rounded border border-slate-100"
-            >
-              Min to cover interest:
-              <span id="interestOnlyVal" class="font-mono text-slate-700"
-                >--</span
-              >
-            </div>
-          </div>
-        </div>
+      const HelpCircle = (props) => (
+        <IconBase {...props}>
+           <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>
+        </IconBase>
+      );
 
-        <!-- RIGHT COLUMN: VISUALIZATION & ADVANCED INPUTS (Expanded width) -->
-        <div
-          class="lg:col-span-9 space-y-6 flex flex-col"
-          style="margin-top: -22.5px"
-        >
-          <!-- Warning Alert -->
-          <div
-            id="warningBox"
-            class="hidden bg-red-50 border-l-4 border-red-400 p-4 rounded-md"
-          >
-            <div class="flex">
-              <div class="flex-shrink-0">
-                <i data-lucide="alert-circle" class="h-5 w-5 text-red-400"></i>
-              </div>
-              <div class="ml-3">
-                <p class="text-sm text-red-700">
-                  Payment is too low. It does not cover the monthly interest.
-                </p>
-              </div>
-            </div>
-          </div>
+      // --- UTILS: COMPONENTS ---
 
-          <!-- Main Chart Row with Side Cards -->
-          <!-- items-stretch ensures the graph card and the inputs column are same height -->
-          <div
-            class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch h-full"
-          >
-            <!-- D3 Charts Container with Merged KPIs -->
-            <div
-              class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-1 flex flex-col h-full"
-            >
-              <!-- Header Layout -->
-              <div
-                class="border-b border-slate-200 px-4 flex flex-wrap items-center justify-between min-h-[60px] gap-4"
-              >
-                <!-- Tabs -->
-                <nav class="-mb-px flex space-x-6 shrink-0" aria-label="Tabs">
-                  <button
-                    id="tab-balance"
-                    onclick="switchTab('balance')"
-                    class="border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                  >
-                    Balance History
-                  </button>
-                  <button
-                    id="tab-composition"
-                    onclick="switchTab('composition')"
-                    class="border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors"
-                  >
-                    Annual Breakdown
-                  </button>
-                </nav>
+      const MoneyInput = ({ value, onChange, className, ...props }) => {
+        const [localValue, setLocalValue] = useState("");
+        const [isFocused, setIsFocused] = useState(false);
 
-                <!-- Merged KPIs (Compact) -->
-                <div class="flex items-center gap-4 py-2 ml-auto shrink-0">
-                  <div class="text-right">
-                    <div
-                      class="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
-                    >
-                      Interest
-                    </div>
-                    <div
-                      id="totalInterest"
-                      class="text-sm font-bold text-emerald-600 font-mono"
-                    >
-                      $0
-                    </div>
-                  </div>
-                  <div class="w-px h-6 bg-slate-100 hidden sm:block"></div>
-                  <div class="text-right">
-                    <div
-                      class="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
-                    >
-                      Cost
-                    </div>
-                    <div
-                      id="totalCost"
-                      class="text-sm font-bold text-blue-600 font-mono"
-                    >
-                      $0
-                    </div>
-                  </div>
-                  <div class="w-px h-6 bg-slate-100 hidden sm:block"></div>
-                  <div class="text-right">
-                    <div
-                      class="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
-                    >
-                      Payoff
-                    </div>
-                    <div
-                      id="payoffDate"
-                      class="text-sm font-bold text-purple-600 whitespace-nowrap"
-                    >
-                      --
-                    </div>
-                  </div>
-                </div>
-              </div>
+        // Sync with parent value when not focused (formats the number)
+        useEffect(() => {
+          if (!isFocused) {
+            setLocalValue(value === undefined || value === null ? "" : new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value));
+          }
+        }, [value, isFocused]);
 
-              <!-- Increased Height to 600px to exceed Parameter card height -->
-              <div
-                id="d3-container"
-                class="chart-container w-full h-[600px] bg-white flex-grow"
-              >
-                <!-- SVG injected here -->
-              </div>
-            </div>
+        const handleFocus = () => {
+          setIsFocused(true);
+          // On focus, show raw value. If 0, show empty string to allow easy editing/deletion without the "stuck at 0" issue.
+          setLocalValue(value === 0 ? "" : value.toString());
+        };
 
-            <!-- Side Column: Advanced Inputs -->
-            <!-- Flex Col and h-full to stretch this column to match graph height -->
-            <div class="xl:col-span-1 flex flex-col gap-6 h-full">
-              <!-- Prepayments -->
-              <div
-                class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col flex-1"
-              >
-                <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
-                  <i
-                    data-lucide="piggy-bank"
-                    class="w-5 h-5 text-emerald-500"
-                  ></i>
-                  Prepayments
-                </h2>
-                <p class="text-xs text-slate-500 mb-4">
-                  Max 15% of original loan/yr (<span
-                    id="maxLumpSumVal"
-                    class="font-mono font-bold"
-                    >--</span
-                  >). Toggle checkbox.
-                </p>
+        const handleBlur = () => {
+          setIsFocused(false);
+        };
 
-                <div
-                  class="flex flex-col gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100"
-                >
-                  <input
-                    type="date"
-                    id="lumpSumDate"
-                    class="block w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white"
-                  />
-                  <div class="flex gap-2">
-                    <div class="relative flex-grow">
-                      <span
-                        class="absolute inset-y-0 left-0 pl-2 flex items-center text-slate-400 text-xs"
-                        >$</span
-                      >
-                      <input
-                        type="number"
-                        id="lumpSumAmount"
-                        placeholder="Amount"
-                        class="block w-full pl-5 pr-2 py-1 text-sm border border-slate-300 rounded bg-white"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onclick="addLumpSum()"
-                      class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-                <!-- flex-grow to push list to fill space -->
-                <ul
-                  id="lumpSumList"
-                  class="space-y-2 overflow-y-auto pr-1 flex-grow"
-                ></ul>
-              </div>
+        const handleChange = (e) => {
+          const raw = e.target.value;
+          setLocalValue(raw);
 
-              <!-- Scenario Adjustments -->
-              <div
-                class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col flex-1"
-              >
-                <h2 class="text-lg font-semibold mb-2 flex items-center gap-2">
-                  <i
-                    data-lucide="calendar-clock"
-                    class="w-5 h-5 text-amber-500"
-                  ></i>
-                  Renewal / Adjustment
-                </h2>
-                <p class="text-xs text-slate-500 mb-4">
-                  Schedule a future change. Toggle checkbox.
-                </p>
+          // Strip non-numeric chars for state update
+          const clean = raw.replace(/,/g, '');
+          if (clean === "" || clean === "-") {
+            onChange(0);
+          } else {
+            const num = parseFloat(clean);
+            if (!isNaN(num)) {
+              onChange(num);
+            }
+          }
+        };
 
-                <div
-                  class="flex flex-col gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100"
-                >
-                  <input
-                    type="date"
-                    id="adjDate"
-                    class="block w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white mb-2"
-                  />
-                  <div class="flex gap-2">
-                    <select
-                      id="adjType"
-                      class="block w-1/2 px-2 py-1 text-sm border border-slate-300 rounded bg-white"
-                    >
-                      <option value="rate">Rate (%)</option>
-                      <option value="payment">Payment ($)</option>
-                    </select>
-                    <input
-                      type="number"
-                      step="0.01"
-                      id="adjValue"
-                      placeholder="Val"
-                      class="block w-1/3 px-2 py-1 text-sm border border-slate-300 rounded bg-white"
-                    />
-                    <button
-                      type="button"
-                      onclick="addAdjustment()"
-                      class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
+        return (
+          <input
+            type="text"
+            inputMode="decimal"
+            value={localValue}
+            onChange={handleChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            className={className}
+            {...props}
+          />
+        );
+      };
 
-                <!-- flex-grow to push list to fill space -->
-                <ul
-                  id="adjustmentList"
-                  class="space-y-2 overflow-y-auto pr-1 flex-grow"
-                ></ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
+      // --- UTILS: CALCULATIONS ---
+      
+      const calculatePayment = (principal, ratePercent, years, frequencyType) => {
+        if (!principal || !ratePercent || !years) return 0;
+        if (principal < 0 || ratePercent < 0 || years <= 0) return 0;
 
-    <script>
-      // --- INIT ---
-      lucide.createIcons();
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('startDate').value = today;
-      const nextYear = new Date();
-      nextYear.setFullYear(nextYear.getFullYear() + 1);
-      const nextYearStr = nextYear.toISOString().split('T')[0];
-      document.getElementById('lumpSumDate').value = nextYearStr;
-      document.getElementById('adjDate').value = nextYearStr;
+        // Canadian Semi-Annual Compounding Logic for effective rates
+        const r_semi = ratePercent / 100 / 2;
+        // Monthly effective rate derived from semi-annual
+        const r_monthly = Math.pow(1 + r_semi, 2 / 12) - 1;
+        
+        const totalMonths = years * 12;
 
-      let currentTab = 'balance';
-      let globalData = null;
-      let lumpSumPayments = [];
-      let adjustments = [];
+        // Basic Monthly Payment Formula
+        const monthlyPmt = (principal * r_monthly) / (1 - Math.pow(1 + r_monthly, -totalMonths));
 
-      // --- LIST MANAGEMENT ---
-      function addLumpSum() {
-        const dateInput = document.getElementById('lumpSumDate');
-        const amountInput = document.getElementById('lumpSumAmount');
-        if (
-          !dateInput.value ||
-          !amountInput.value ||
-          parseFloat(amountInput.value) <= 0
-        )
-          return;
-        lumpSumPayments.push({
-          id: Date.now(),
-          date: dateInput.value,
-          amount: parseFloat(amountInput.value),
-          active: true,
-        });
-        lumpSumPayments.sort((a, b) => new Date(a.date) - new Date(b.date));
-        amountInput.value = '';
-        renderLumpSumList();
-        calculate();
-      }
-
-      function removeLumpSum(id) {
-        lumpSumPayments = lumpSumPayments.filter(p => p.id !== id);
-        renderLumpSumList();
-        calculate();
-      }
-
-      function toggleLumpSum(id) {
-        const p = lumpSumPayments.find(p => p.id === id);
-        if (p) {
-          p.active = !p.active;
-          calculate();
+        switch (frequencyType) {
+          case '12': // Monthly
+            return monthlyPmt;
+          case '24': // Semi-Monthly
+            return monthlyPmt / 2;
+          case '26': // Regular Bi-Weekly (Annual / 26)
+            return (monthlyPmt * 12) / 26;
+          case 'rapid-26': // Rapid Bi-Weekly (Monthly / 2)
+            return monthlyPmt / 2;
+          case '52': // Weekly
+            return (monthlyPmt * 12) / 52;
+          default:
+            return monthlyPmt;
         }
-      }
+      };
 
-      function renderLumpSumList() {
-        const list = document.getElementById('lumpSumList');
-        list.innerHTML = '';
-        lumpSumPayments.forEach(p => {
-          const li = document.createElement('li');
-          li.className =
-            'flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm';
-          li.innerHTML = `
-            <div class="flex items-center gap-3">
-                <input type="checkbox" class="toggle-checkbox" ${p.active ? 'checked' : ''} onchange="toggleLumpSum(${p.id})">
-                <div>
-                    <span class="font-medium text-slate-700">${p.date}</span>
-                    <span class="text-emerald-600 font-mono ml-2 ${!p.active ? 'opacity-50 line-through' : ''}">+${formatCurrency(p.amount)}</span>
-                </div>
-            </div>
-            <button type="button" onclick="removeLumpSum(${p.id})" class="text-slate-400 hover:text-red-500">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>`;
-          list.appendChild(li);
-        });
-        lucide.createIcons();
-      }
+      const simulateMortgage = (params) => {
+        const {
+          originalLoan,
+          currentBalance: startBalance,
+          interestRate: startRate,
+          paymentAmount: startPayment,
+          frequency,
+          startDate,
+          compounding,
+          lumpSums,
+          adjustments,
+        } = params;
 
-      function addAdjustment() {
-        const type = document.getElementById('adjType').value;
-        const date = document.getElementById('adjDate').value;
-        const val = document.getElementById('adjValue').value;
-        if (!date || !val) return;
-        adjustments.push({
-          id: Date.now(),
-          date: date,
-          type: type,
-          value: parseFloat(val),
-          active: true,
-        });
-        adjustments.sort((a, b) => new Date(a.date) - new Date(b.date));
-        document.getElementById('adjValue').value = '';
-        renderAdjustmentList();
-        calculate();
-      }
-
-      function removeAdjustment(id) {
-        adjustments = adjustments.filter(p => p.id !== id);
-        renderAdjustmentList();
-        calculate();
-      }
-
-      function toggleAdjustment(id) {
-        const p = adjustments.find(p => p.id === id);
-        if (p) {
-          p.active = !p.active;
-          calculate();
+        if (isNaN(startBalance) || isNaN(startRate) || isNaN(startPayment) || !startDate) {
+          return {
+            timeSeries: [],
+            yearlyData: [],
+            events: [],
+            totalInterest: 0,
+            totalCost: 0,
+            payoffDate: new Date(),
+            isViable: false,
+            minInterest: 0,
+          };
         }
-      }
 
-      function renderAdjustmentList() {
-        const list = document.getElementById('adjustmentList');
-        list.innerHTML = '';
-        adjustments.forEach(p => {
-          const li = document.createElement('li');
-          li.className =
-            'flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm';
-          const label =
-            p.type === 'rate'
-              ? `${p.value}% Rate`
-              : `${formatCurrency(p.value)} Pmt`;
-          li.innerHTML = `
-            <div class="flex items-center gap-3">
-                <input type="checkbox" class="toggle-checkbox" ${p.active ? 'checked' : ''} onchange="toggleAdjustment(${p.id})">
-                <div>
-                    <span class="font-medium text-slate-700">${p.date}</span>
-                    <span class="text-amber-600 font-mono ml-2 ${!p.active ? 'opacity-50 line-through' : ''}">${label}</span>
-                </div>
-            </div>
-            <button type="button" onclick="removeAdjustment(${p.id})" class="text-slate-400 hover:text-red-500">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>`;
-          list.appendChild(li);
-        });
-        lucide.createIcons();
-      }
-
-      // --- CORE CALCULATION ---
-      function calculate() {
-        const originalLoan = parseFloat(
-          document.getElementById('originalLoanAmount').value
-        );
-        const startBalance = parseFloat(
-          document.getElementById('loanAmount').value
-        );
-        const startRate = parseFloat(
-          document.getElementById('interestRate').value
-        );
-        const startPayment = parseFloat(
-          document.getElementById('paymentAmount').value
-        );
-        const frequency = parseInt(document.getElementById('frequency').value);
-        const startDateRaw = document.getElementById('startDate').value;
-
-        if (
-          isNaN(originalLoan) ||
-          isNaN(startBalance) ||
-          isNaN(startRate) ||
-          isNaN(startPayment) ||
-          !startDateRaw
-        )
-          return;
-
-        // Max Lump Sum Limit
         const maxAnnualLumpSum = originalLoan * 0.15;
-        document.getElementById('maxLumpSumVal').innerText =
-          formatCurrency(maxAnnualLumpSum);
+        let currentBalance = Math.max(0, startBalance);
+        let currentRate = Math.max(0, startRate);
+        let currentPayment = Math.max(0, startPayment);
 
-        // Dynamic State Variables
-        let currentBalance = startBalance;
-        let currentRate = startRate;
-        let currentPayment = startPayment;
-        let ratePerPeriod = currentRate / 100 / frequency;
+        // Determine rate per period based on compounding type
+        let ratePerPeriod;
+        if (compounding === 'semi') {
+          const r_semi = currentRate / 100 / 2;
+          ratePerPeriod = Math.pow(1 + r_semi, 2 / frequency) - 1;
+        } else {
+          ratePerPeriod = currentRate / 100 / frequency;
+        }
 
-        // Date setup (Noon fix)
-        const [y, m, d] = startDateRaw.split('-').map(Number);
-        let currentDate = new Date(y, m - 1, d, 12, 0, 0);
+        const [y, m, d] = startDate.split('-').map(Number);
+        const currentDate = new Date(y, m - 1, d, 12, 0, 0);
         const startAnchorDay = currentDate.getDate();
 
-        // Queues - FILTERED BY ACTIVE STATE
-        let lumpSumQueue = lumpSumPayments.filter(p => p.active);
-        let adjQueue = adjustments.filter(p => p.active);
+        // Queues
+        const lumpSumQueue = lumpSums
+          .filter((p) => p.active)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .map((p) => ({ ...p }));
+          
+        const adjQueue = adjustments
+          .filter((p) => p.active)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .map((p) => ({ ...p }));
 
-        // Output Data - No 'Start' Event
         const timeSeries = [
-          { date: new Date(currentDate), balance: currentBalance, event: null },
+          { date: new Date(currentDate), balance: currentBalance, cumulativeInterest: 0, event: null },
         ];
-        let yearlyData = [];
+        const yearlyData = [];
+
         let currentYearForLumpSum = currentDate.getFullYear();
         let lumpSumUsedInYear = 0;
-
         let totalInterest = 0;
+        let runningInterest = 0;
         let totalPrincipal = 0;
 
-        // Yearly Accumulators
         let yearStart = currentDate.getFullYear();
         let yrInterest = 0;
         let yrPrincipal = 0;
         let yrLumpSum = 0;
         let yrCount = 0;
 
-        // Check initial min payment
-        const minInterest = startBalance * (startRate / 100 / frequency);
-        document.getElementById('interestOnlyVal').innerText =
-          formatCurrency(minInterest);
-        const warningBox = document.getElementById('warningBox');
-        if (
-          currentPayment <= minInterest &&
-          lumpSumPayments.filter(p => p.active).length === 0 &&
-          adjustments.filter(p => p.active).length === 0
-        ) {
-          warningBox.classList.remove('hidden');
-          updateKPIs(0, 0, 'Never');
-          clearD3();
-          return;
-        } else {
-          warningBox.classList.add('hidden');
-        }
-
+        const minInterest = startBalance * ratePerPeriod;
         let safetyCounter = 0;
-        const maxPeriods = frequency * 100; // 100 years cap
+        const maxPeriods = frequency * 100; // 100 years hard cap
 
-        while (currentBalance > 0 && safetyCounter < maxPeriods) {
+        while (currentBalance > 0.01 && safetyCounter < maxPeriods) {
           const loopDateObj = new Date(currentDate);
 
-          // 1. Reset Annual Lump Limit
+          // Reset annual lump sum limit
           if (loopDateObj.getFullYear() !== currentYearForLumpSum) {
             currentYearForLumpSum = loopDateObj.getFullYear();
             lumpSumUsedInYear = 0;
           }
 
-          // 2. Process Adjustments (Rate/Payment Changes)
+          // Process Adjustments
           let eventType = null;
-          while (
-            adjQueue.length > 0 &&
-            new Date(adjQueue[0].date) <= loopDateObj
-          ) {
+          while (adjQueue.length > 0 && new Date(adjQueue[0].date) <= loopDateObj) {
             const adj = adjQueue.shift();
-            if (adj.type === 'rate') {
-              currentRate = adj.value;
-              ratePerPeriod = currentRate / 100 / frequency;
-              // Only show rate value, simple %
-              eventType = `${currentRate}%`;
-            } else if (adj.type === 'payment') {
-              currentPayment = adj.value;
-              // No visual marker for Payment changes per user request
+            if (adj) {
+              if (adj.type === 'rate') {
+                currentRate = Math.max(0, adj.value); // Prevent negative rate adjustment
+                if (compounding === 'semi') {
+                  const r_semi = currentRate / 100 / 2;
+                  ratePerPeriod = Math.pow(1 + r_semi, 2 / frequency) - 1;
+                } else {
+                  ratePerPeriod = currentRate / 100 / frequency;
+                }
+                eventType = `${currentRate}%`;
+              } else if (adj.type === 'payment') {
+                currentPayment = Math.max(0, adj.value); // Prevent negative payment adjustment
+                eventType = `$${adj.value}`;
+              }
             }
           }
 
-          // 3. Process Lump Sums
+          // Process Lump Sums
           let appliedLump = 0;
-          while (
-            lumpSumQueue.length > 0 &&
-            new Date(lumpSumQueue[0].date) <= loopDateObj
-          ) {
+          while (lumpSumQueue.length > 0 && new Date(lumpSumQueue[0].date) <= loopDateObj) {
             const p = lumpSumQueue.shift();
-            const cap = maxAnnualLumpSum - lumpSumUsedInYear;
-            let amt = p.amount;
-            if (amt > cap) amt = cap;
-
-            if (amt > 0) {
-              if (currentBalance < amt) amt = currentBalance;
-              currentBalance -= amt;
-              lumpSumUsedInYear += amt;
-              appliedLump += amt;
-              totalPrincipal += amt;
+            if (p) {
+              const cap = maxAnnualLumpSum - lumpSumUsedInYear;
+              let amt = p.amount;
+              if (amt > cap) amt = cap; // Enforce limit
+              if (amt > 0) {
+                if (currentBalance < amt) amt = currentBalance;
+                currentBalance -= amt;
+                lumpSumUsedInYear += amt;
+                appliedLump += amt;
+                totalPrincipal += amt;
+              }
             }
           }
 
-          // 4. Process Regular Payment
+          // Regular Payment
           if (currentBalance > 0) {
             let interestPart = currentBalance * ratePerPeriod;
             let principalPart = currentPayment - interestPart;
@@ -789,41 +337,45 @@
             if (currentBalance + interestPart < currentPayment) {
               interestPart = currentBalance * ratePerPeriod;
               principalPart = currentBalance;
-              currentPayment = principalPart + interestPart;
+            }
+
+            if (principalPart < 0) {
+               // Negative amortization simulated
             }
 
             currentBalance -= principalPart;
             if (currentBalance < 0.01) currentBalance = 0;
 
             totalInterest += interestPart;
+            runningInterest += interestPart;
             totalPrincipal += principalPart;
-
             yrInterest += interestPart;
             yrPrincipal += principalPart;
             yrCount++;
           }
 
           yrLumpSum += appliedLump;
+
+          // Advance Date
           advanceDate(currentDate, frequency, startAnchorDay, safetyCounter);
 
-          // Snapshot for Chart
           timeSeries.push({
             date: new Date(currentDate),
             balance: currentBalance,
+            cumulativeInterest: runningInterest,
             event: eventType,
           });
 
-          // Yearly Aggregation
+          // Aggregate Yearly Data
           if (currentDate.getFullYear() !== yearStart || currentBalance === 0) {
             yearlyData.push({
               year: yearStart,
               interest: yrInterest,
               principal: yrPrincipal,
               lumpSum: yrLumpSum,
-              balance:
-                currentBalance === 0 && currentDate.getFullYear() === yearStart
-                  ? 0
-                  : timeSeries[timeSeries.length - 2].balance,
+              balance: currentBalance === 0 && currentDate.getFullYear() === yearStart 
+                ? 0 
+                : timeSeries[timeSeries.length - 2].balance,
               count: yrCount,
             });
             yearStart = currentDate.getFullYear();
@@ -832,15 +384,10 @@
             yrLumpSum = 0;
             yrCount = 0;
           }
-
           safetyCounter++;
         }
 
-        // Final partial year
-        if (
-          yearlyData.length === 0 ||
-          yearlyData[yearlyData.length - 1].year !== yearStart
-        ) {
+        if (yearlyData.length === 0 || yearlyData[yearlyData.length - 1].year !== yearStart) {
           if (yrInterest > 0 || yrPrincipal > 0 || yrLumpSum > 0) {
             yearlyData.push({
               year: yearStart,
@@ -853,432 +400,954 @@
           }
         }
 
-        const events = timeSeries.filter(d => d.event);
+        const events = timeSeries.filter((d) => d.event);
+        const payoffDate = currentBalance <= 0.01 
+          ? timeSeries[timeSeries.length - 1].date 
+          : "Never";
 
-        updateKPIs(
+        return {
+          timeSeries,
+          yearlyData,
+          events,
           totalInterest,
-          totalPrincipal + totalInterest,
-          timeSeries[timeSeries.length - 1].date
-        );
-        globalData = { timeSeries, yearlyData, events };
-        drawD3();
-      }
+          totalCost: totalInterest + totalPrincipal,
+          payoffDate,
+          isViable: safetyCounter < maxPeriods || currentBalance <= 0,
+          minInterest,
+        };
+      };
 
       function advanceDate(dateObj, freq, anchorDay, counter) {
-        if (freq === 12) dateObj.setMonth(dateObj.getMonth() + 1);
-        else if (freq === 24) {
+        if (freq === 12) {
+          dateObj.setMonth(dateObj.getMonth() + 1);
+        } else if (freq === 24) {
           if (counter % 2 === 0) dateObj.setDate(anchorDay + 15);
           else {
             dateObj.setDate(1);
             dateObj.setMonth(dateObj.getMonth() + 1);
             dateObj.setDate(anchorDay);
           }
-        } else dateObj.setDate(dateObj.getDate() + (freq === 26 ? 14 : 7));
-      }
-
-      function updateKPIs(interest, cost, dateObj) {
-        document.getElementById('totalInterest').innerText =
-          formatCurrency(interest);
-        document.getElementById('totalCost').innerText = formatCurrency(cost);
-        document.getElementById('payoffDate').innerText =
-          dateObj === 'Never'
-            ? 'Never'
-            : dateObj.toLocaleDateString('en-US', {
-                month: 'short',
-                year: 'numeric',
-              });
-      }
-      function formatCurrency(val) {
-        return new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-          minimumFractionDigits: 0,
-        }).format(val);
-      }
-
-      // --- D3 RENDERING ---
-      function clearD3() {
-        d3.select('#d3-container').selectAll('*').remove();
-      }
-
-      function drawD3() {
-        if (!globalData) return;
-        clearD3();
-        const container = document.getElementById('d3-container');
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        const margin = { top: 40, right: 50, bottom: 30, left: 60 };
-        const innerWidth = width - margin.left - margin.right;
-        const innerHeight = height - margin.top - margin.bottom;
-
-        const svg = d3
-          .select('#d3-container')
-          .append('svg')
-          .attr('width', width)
-          .attr('height', height);
-        const g = svg
-          .append('g')
-          .attr('transform', `translate(${margin.left},${margin.top})`);
-
-        let xScale, yScale;
-
-        if (currentTab === 'balance') {
-          const data = globalData.timeSeries;
-          const maxDate = new Date(data[data.length - 1].date);
-          maxDate.setMonth(maxDate.getMonth() + 6);
-
-          xScale = d3
-            .scaleTime()
-            .domain([data[0].date, maxDate])
-            .range([0, innerWidth]);
-          yScale = d3
-            .scaleLinear()
-            .domain([0, d3.max(data, d => d.balance) * 1.05])
-            .range([innerHeight, 0]);
-
-          const yAxisGrid = d3
-            .axisLeft(yScale)
-            .tickSize(-innerWidth)
-            .tickFormat('')
-            .ticks(10);
-          g.append('g')
-            .attr('class', 'grid-line opacity-20')
-            .call(yAxisGrid)
-            .selectAll('line')
-            .attr('stroke', '#e2e8f0');
-
-          const area = d3
-            .area()
-            .x(d => xScale(d.date))
-            .y0(innerHeight)
-            .y1(d => yScale(d.balance));
-          g.append('path')
-            .datum(data)
-            .attr('fill', 'rgba(79, 70, 229, 0.1)')
-            .attr('d', area);
-          const line = d3
-            .line()
-            .x(d => xScale(d.date))
-            .y(d => yScale(d.balance));
-          g.append('path')
-            .datum(data)
-            .attr('fill', 'none')
-            .attr('stroke', '#4f46e5')
-            .attr('stroke-width', 2.5)
-            .attr('d', line);
-
-          // --- Event Markers ---
-          if (globalData.events) {
-            globalData.events.forEach(ev => {
-              const xPos = xScale(ev.date);
-              g.append('line')
-                .attr('class', 'event-marker-line')
-                .attr('x1', xPos)
-                .attr('x2', xPos)
-                .attr('y1', innerHeight)
-                .attr('y2', yScale(ev.balance));
-              g.append('circle')
-                .attr('class', 'event-marker-dot')
-                .attr('cx', xPos)
-                .attr('cy', yScale(ev.balance))
-                .attr('r', 4);
-              g.append('text')
-                .attr('x', xPos)
-                .attr('y', yScale(ev.balance) - 10)
-                .attr('text-anchor', 'middle')
-                .attr('fill', '#d97706')
-                .attr('font-size', '10px')
-                .attr('font-weight', 'bold')
-                .text(ev.event);
-            });
-          }
         } else {
-          const data = globalData.yearlyData;
-          const keys = ['principal', 'lumpSum', 'interest'];
-          const stack = d3.stack().keys(keys);
-          const layers = stack(data);
-          const xDomain = data.map(d => d.year);
-          xScale = d3
-            .scaleBand()
-            .domain(xDomain)
-            .range([0, innerWidth])
-            .padding(0.2);
-          const maxVal = d3.max(layers, layer => d3.max(layer, d => d[1]));
-          yScale = d3
-            .scaleLinear()
-            .domain([0, maxVal * 1.05])
-            .range([innerHeight, 0]);
+          // Bi-Weekly (26) or Weekly (52)
+          const daysToAdd = freq === 26 ? 14 : 7;
+          dateObj.setDate(dateObj.getDate() + daysToAdd);
+        }
+      }
 
-          const colorMap = {
-            principal: '#10b981',
-            lumpSum: '#059669',
-            interest: '#f43f5e',
+      // --- COMPONENT: D3 CHART ---
+
+      const D3Chart = ({ data, baselineData, activeTab, isCompareMode }) => {
+        const containerRef = useRef(null);
+
+        useEffect(() => {
+          if (!containerRef.current || !data) return;
+
+          const container = containerRef.current;
+          // Clear previous SVG
+          d3.select(container).selectAll("svg").remove();
+
+          const width = container.clientWidth;
+          const height = container.clientHeight;
+          const margin = { top: 40, right: 50, bottom: 30, left: 60 };
+          const innerWidth = width - margin.left - margin.right;
+          const innerHeight = height - margin.top - margin.bottom;
+
+          const svg = d3.select(container)
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+          const g = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+          let xScale, yScale;
+
+          // Helper formatter
+          const formatCurrency = (val) => {
+              if (val >= 1000000) return "$" + (val / 1000000).toFixed(2) + "M";
+              if (val >= 1000) return "$" + (val / 1000).toFixed(0) + "k";
+              return "$" + val.toFixed(0);
           };
-          g.selectAll('.layer')
-            .data(layers)
-            .join('g')
-            .attr('fill', d => colorMap[d.key])
-            .selectAll('rect')
-            .data(d => d)
-            .join('rect')
-            .attr('x', d => xScale(d.data.year))
-            .attr('y', d => yScale(d[1]))
-            .attr('height', d => yScale(d[0]) - yScale(d[1]))
-            .attr('width', xScale.bandwidth());
-        }
 
-        const xAxis = d3.axisBottom(xScale).ticks(width > 600 ? 10 : 5);
-        const yAxis = d3
-          .axisLeft(yScale)
-          .ticks(10)
-          .tickFormat(d => (d >= 1000 ? '$' + d / 1000 + 'k' : '$' + d));
-        g.append('g')
-          .attr('class', 'axis')
-          .attr('transform', `translate(0,${innerHeight})`)
-          .call(xAxis);
-        g.append('g').attr('class', 'axis').call(yAxis);
+          if (activeTab === "balance") {
+            // --- BALANCE CHART LOGIC ---
+            const timeData = data.timeSeries;
+            let maxDate = new Date(timeData[timeData.length - 1].date);
+            let maxBalance = d3.max(timeData, (d) => d.balance) || 0;
 
-        // --- CROSSHAIR ---
-        const legendG = svg
-          .append('g')
-          .attr('class', 'chart-legend')
-          .attr('transform', `translate(${margin.left}, 20)`);
-        const legendText = legendG
-          .append('text')
-          .attr('dominant-baseline', 'middle');
-
-        const crosshairG = svg.append('g').attr('class', 'crosshair-group');
-        const vLine = crosshairG
-          .append('line')
-          .attr('class', 'crosshair')
-          .attr('y1', margin.top)
-          .attr('y2', height - margin.bottom);
-        const hLine = crosshairG
-          .append('line')
-          .attr('class', 'crosshair')
-          .attr('x1', margin.left)
-          .attr('x2', width - margin.right);
-        const xLabelG = crosshairG.append('g').attr('opacity', 0);
-        const xLabelRect = xLabelG
-          .append('rect')
-          .attr('class', 'crosshair-label-bg')
-          .attr('rx', 3)
-          .attr('ry', 3)
-          .attr('height', 20);
-        const xLabelText = xLabelG
-          .append('text')
-          .attr('class', 'crosshair-label-text')
-          .attr('y', 14)
-          .attr('text-anchor', 'middle');
-        const yLabelG = crosshairG.append('g').attr('opacity', 0);
-        const yLabelRect = yLabelG
-          .append('rect')
-          .attr('class', 'crosshair-label-bg')
-          .attr('rx', 3)
-          .attr('ry', 3)
-          .attr('height', 20);
-        const yLabelText = yLabelG
-          .append('text')
-          .attr('class', 'crosshair-label-text')
-          .attr('y', 14)
-          .attr('x', 4)
-          .attr('text-anchor', 'start');
-
-        svg
-          .append('rect')
-          .attr('class', 'overlay')
-          .attr('width', innerWidth)
-          .attr('height', innerHeight)
-          .attr('transform', `translate(${margin.left},${margin.top})`)
-          .on('mouseover', () => {
-            vLine.style('opacity', 1);
-            hLine.style('opacity', 1);
-            xLabelG.attr('opacity', 1);
-            yLabelG.attr('opacity', 1);
-            d3.selectAll('.crosshair-label-bg').style('opacity', 1);
-            d3.selectAll('.crosshair-label-text').style('opacity', 1);
-            legendText.style('opacity', 1);
-          })
-          .on('mouseout', () => {
-            vLine.style('opacity', 0);
-            hLine.style('opacity', 0);
-            xLabelG.attr('opacity', 0);
-            yLabelG.attr('opacity', 0);
-            d3.selectAll('.crosshair-label-bg').style('opacity', 0);
-            d3.selectAll('.crosshair-label-text').style('opacity', 0);
-            legendText.text('');
-          })
-          .on('mousemove', function (event) {
-            const [mx, my] = d3.pointer(event);
-            const svgX = mx + margin.left;
-            const svgY = my + margin.top;
-            vLine.attr('x1', svgX).attr('x2', svgX);
-            hLine.attr('y1', svgY).attr('y2', svgY);
-
-            let xValText, yValText;
-            if (currentTab === 'balance') {
-              const dateVal = xScale.invert(mx);
-              xValText = dateVal.toLocaleDateString('en-US', {
-                month: 'short',
-                year: 'numeric',
-              });
-              const bisect = d3.bisector(d => d.date).left;
-              const idx = bisect(globalData.timeSeries, dateVal, 1);
-              const d = globalData.timeSeries[idx];
-              if (d) {
-                legendText.text('');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-label')
-                  .text('Date: ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-value')
-                  .text(
-                    d.date.toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
-                  );
-                legendText.append('tspan').text('    ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-label')
-                  .text('Balance: ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-value')
-                  .attr('fill', '#4f46e5')
-                  .text(formatCurrency(d.balance));
-              }
-            } else {
-              const eachBand = xScale.step();
-              const index = Math.floor(mx / eachBand);
-              const domain = xScale.domain();
-              const year = domain[index];
-              xValText = year || '';
-              const d = globalData.yearlyData.find(yd => yd.year === year);
-              if (d) {
-                legendText.text('');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-label')
-                  .text('Year: ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-value')
-                  .text(d.year);
-                legendText.append('tspan').text('   ');
-                legendText.append('tspan').attr('fill', '#10b981').text('● ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-label')
-                  .text('Principal: ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-value')
-                  .text(formatCurrency(d.principal));
-                legendText.append('tspan').text('   ');
-                legendText.append('tspan').attr('fill', '#f43f5e').text('● ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-label')
-                  .text('Interest: ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-value')
-                  .text(formatCurrency(d.interest));
-                legendText.append('tspan').text('   ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-label')
-                  .text('Payments: ');
-                legendText
-                  .append('tspan')
-                  .attr('class', 'legend-value')
-                  .attr('fill', '#1e293b')
-                  .text(d.count);
-              }
+            if (baselineData && baselineData.isViable) {
+              const baseLast = new Date(baselineData.timeSeries[baselineData.timeSeries.length - 1].date);
+              if (baseLast > maxDate) maxDate = baseLast;
+              const baseMaxBal = d3.max(baselineData.timeSeries, (d) => d.balance) || 0;
+              if (baseMaxBal > maxBalance) maxBalance = baseMaxBal;
             }
-            const currencyVal = yScale.invert(my);
-            yValText = formatCurrencyShort(currencyVal);
-            xLabelText.text(xValText);
-            const xBBox = xLabelText.node().getBBox();
-            xLabelRect
-              .attr('width', xBBox.width + 16)
-              .attr('x', -xBBox.width / 2 - 8);
-            xLabelG.attr(
-              'transform',
-              `translate(${svgX}, ${height - margin.bottom + 12})`
-            );
-            yLabelText.text(yValText);
-            const yBBox = yLabelText.node().getBBox();
-            yLabelRect.attr('width', yBBox.width + 12).attr('x', 0);
-            yLabelG.attr(
-              'transform',
-              `translate(${margin.left - (yBBox.width + 12) - 5}, ${svgY - 10})`
-            );
-          });
-      }
-      function formatCurrencyShort(val) {
-        if (val >= 1000000) return '$' + (val / 1000000).toFixed(2) + 'M';
-        if (val >= 1000) return '$' + (val / 1000).toFixed(0) + 'k';
-        return '$' + val.toFixed(0);
+
+            const finalDate = new Date(maxDate);
+            finalDate.setMonth(finalDate.getMonth() + 6);
+
+            xScale = d3.scaleTime().domain([timeData[0].date, finalDate]).range([0, innerWidth]);
+            yScale = d3.scaleLinear().domain([0, maxBalance * 1.05]).range([innerHeight, 0]);
+
+            // Grid
+            const yAxisGrid = d3.axisLeft(yScale).tickSize(-innerWidth).tickFormat(() => "").ticks(10);
+            g.append("g")
+              .attr("class", "grid-line opacity-20")
+              .call(yAxisGrid)
+              .selectAll("line")
+              .attr("stroke", "#e2e8f0");
+
+            // Baseline
+            if (baselineData && baselineData.isViable) {
+              const areaBase = d3.area()
+                .x((d) => xScale(d.date))
+                .y0(innerHeight)
+                .y1((d) => yScale(d.balance));
+              
+              const lineBase = d3.line()
+                .x((d) => xScale(d.date))
+                .y((d) => yScale(d.balance));
+
+              g.append("path")
+                .datum(baselineData.timeSeries)
+                .attr("fill", "#f1f5f9")
+                .attr("opacity", 0.5)
+                .attr("d", areaBase);
+              
+              g.append("path")
+                .datum(baselineData.timeSeries)
+                .attr("fill", "none")
+                .attr("stroke", "#94a3b8")
+                .attr("stroke-width", 2)
+                .attr("stroke-dasharray", "5,5")
+                .attr("d", lineBase);
+            }
+
+            // Current
+            const area = d3.area()
+              .x((d) => xScale(d.date))
+              .y0(innerHeight)
+              .y1((d) => yScale(d.balance));
+
+            const line = d3.line()
+              .x((d) => xScale(d.date))
+              .y((d) => yScale(d.balance));
+
+            g.append("path")
+              .datum(timeData)
+              .attr("fill", "rgba(79, 70, 229, 0.1)")
+              .attr("d", area);
+
+            g.append("path")
+              .datum(timeData)
+              .attr("fill", "none")
+              .attr("stroke", "#4f46e5")
+              .attr("stroke-width", 2.5)
+              .attr("d", line);
+
+            // Event Markers
+            if (data.events) {
+              data.events.forEach((ev) => {
+                const xPos = xScale(ev.date);
+                const yPos = yScale(ev.balance);
+                g.append("line")
+                  .attr("stroke", "#f59e0b")
+                  .attr("stroke-width", 1.5)
+                  .attr("stroke-dasharray", "3 3")
+                  .attr("opacity", 0.6)
+                  .attr("x1", xPos)
+                  .attr("x2", xPos)
+                  .attr("y1", innerHeight)
+                  .attr("y2", yPos);
+                
+                g.append("circle")
+                  .attr("fill", "#f59e0b")
+                  .attr("stroke", "#fff")
+                  .attr("stroke-width", 2)
+                  .attr("cx", xPos)
+                  .attr("cy", yPos)
+                  .attr("r", 4);
+                
+                g.append("text")
+                  .attr("x", xPos)
+                  .attr("y", yPos - 10)
+                  .attr("text-anchor", "middle")
+                  .attr("fill", "#d97706")
+                  .attr("font-size", "10px")
+                  .attr("font-weight", "bold")
+                  .text(ev.event || "");
+              });
+            }
+
+          } else {
+            // --- COMPOSITION CHART LOGIC ---
+            const yearly = data.yearlyData;
+            const keys = ["principal", "lumpSum", "interest"];
+            const stack = d3.stack().keys(keys);
+            let allYears = new Set(yearly.map((d) => d.year));
+            
+            const layers = stack(yearly);
+            let maxYVal = d3.max(layers, (l) => d3.max(l, (d) => d[1])) || 0;
+
+            let baseLayers = null;
+            if (baselineData && baselineData.isViable) {
+              baselineData.yearlyData.forEach((d) => allYears.add(d.year));
+              const bStack = d3.stack().keys(keys);
+              baseLayers = bStack(baselineData.yearlyData);
+              const bMax = d3.max(baseLayers, (l) => d3.max(l, (d) => d[1])) || 0;
+              if (bMax > maxYVal) maxYVal = bMax;
+            }
+
+            const sortedYears = Array.from(allYears).sort((a, b) => a - b);
+            xScale = d3.scaleBand().domain(sortedYears.map(String)).range([0, innerWidth]).padding(0.2);
+            yScale = d3.scaleLinear().domain([0, maxYVal * 1.05]).range([innerHeight, 0]);
+
+            const colorMap = { principal: "#10b981", lumpSum: "#059669", interest: "#f43f5e" };
+
+            // Render Baseline Ghosts
+            if (baseLayers) {
+              g.selectAll(".base-layer")
+                .data(baseLayers)
+                .join("g")
+                .attr("fill", (d) => (d.key === "interest" ? "#fda4af" : "#6ee7b7"))
+                .attr("opacity", 0.4)
+                .selectAll("rect")
+                .data((d) => d)
+                .join("rect")
+                .attr("x", (d) => (xScale(String(d.data.year)) || 0) + xScale.bandwidth() * 0.15)
+                .attr("y", (d) => yScale(d[1]))
+                .attr("height", (d) => yScale(d[0]) - yScale(d[1]))
+                .attr("width", xScale.bandwidth() * 0.7);
+            }
+
+            // Render Current
+            g.selectAll(".layer")
+              .data(layers)
+              .join("g")
+              .attr("fill", (d) => colorMap[d.key])
+              .selectAll("rect")
+              .data((d) => d)
+              .join("rect")
+              .attr("x", (d) => xScale(String(d.data.year)) || 0)
+              .attr("y", (d) => yScale(d[1]))
+              .attr("height", (d) => yScale(d[0]) - yScale(d[1]))
+              .attr("width", xScale.bandwidth())
+              .attr("stroke", isCompareMode ? "#fff" : "none")
+              .attr("stroke-width", isCompareMode ? 1 : 0);
+          }
+
+          // --- AXES ---
+          const xAxis = d3.axisBottom(xScale).ticks(width > 600 ? 10 : 5);
+          if (activeTab === "composition") {
+            const domain = xScale.domain();
+            if (domain.length > 15) {
+                const step = Math.ceil(domain.length / 10);
+                xAxis.tickValues(domain.filter((_, i) => i % step === 0));
+            }
+          }
+
+          const yAxis = d3.axisLeft(yScale).ticks(10).tickFormat((d) => formatCurrency(d));
+          
+          g.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${innerHeight})`)
+            .call(xAxis)
+            .selectAll("text")
+            .attr("fill", "#64748b");
+
+          g.append("g")
+            .attr("class", "axis")
+            .call(yAxis)
+            .selectAll("text")
+            .attr("fill", "#64748b");
+
+          // --- INTERACTIVITY (Crosshairs) ---
+          const legendG = svg.append("g")
+              .attr("class", "chart-legend")
+              .attr("transform", `translate(${margin.left}, 20)`);
+          const legendText = legendG.append("text").attr("dominant-baseline", "middle");
+
+          const crosshairG = svg.append("g").attr("class", "crosshair-group").style("pointer-events", "none");
+          const vLine = crosshairG.append("line")
+              .attr("stroke", "#64748b")
+              .attr("stroke-width", 1)
+              .attr("stroke-dasharray", "4 4")
+              .attr("opacity", 0)
+              .attr("y1", margin.top)
+              .attr("y2", height - margin.bottom);
+
+          const hLine = crosshairG.append("line")
+              .attr("stroke", "#64748b")
+              .attr("stroke-width", 1)
+              .attr("stroke-dasharray", "4 4")
+              .attr("opacity", 0)
+              .attr("x1", margin.left)
+              .attr("x2", width - margin.right);
+
+          // Overlay for tracking
+          svg.append("rect")
+            .attr("width", innerWidth)
+            .attr("height", innerHeight)
+            .attr("fill", "transparent")
+            .attr("transform", `translate(${margin.left},${margin.top})`)
+            .on("mouseover", () => {
+              vLine.attr("opacity", 1);
+              hLine.attr("opacity", 1);
+            })
+            .on("mouseout", () => {
+              vLine.attr("opacity", 0);
+              hLine.attr("opacity", 0);
+              legendText.text("");
+            })
+            .on("mousemove", function(event) {
+              const [mx, my] = d3.pointer(event);
+              const svgX = mx + margin.left;
+              const svgY = my + margin.top;
+
+              // Update Legend
+              if (activeTab === "balance") {
+                  vLine.attr("x1", svgX).attr("x2", svgX);
+                  hLine.attr("y1", svgY).attr("y2", svgY).attr("opacity", 1);
+
+                  const dateVal = xScale.invert(mx);
+                  const bisect = d3.bisector((d) => d.date).left;
+                  const idx = bisect(data.timeSeries, dateVal, 1);
+                  const d = data.timeSeries[idx > 0 ? idx - 1 : 0];
+                  
+                  if (d) {
+                      legendText.text("");
+                      legendText.append("tspan").attr("fill", "#64748b").attr("font-weight", "500").text("Date: ");
+                      legendText.append("tspan").attr("font-family", "monospace").attr("font-weight", "600").text(d.date.toLocaleDateString(undefined, {month: 'short', year: 'numeric', day: 'numeric'}));
+                      legendText.append("tspan").text("   ");
+                      legendText.append("tspan").attr("fill", "#64748b").attr("font-weight", "500").text("Balance: ");
+                      legendText.append("tspan").attr("fill", "#4f46e5").attr("font-family", "monospace").attr("font-weight", "600").text(formatCurrency(d.balance));
+                      legendText.append("tspan").text("   ");
+                      legendText.append("tspan").attr("fill", "#64748b").attr("font-weight", "500").text("Cum. Interest: ");
+                      legendText.append("tspan").attr("fill", "#f59e0b").attr("font-family", "monospace").attr("font-weight", "600").text(formatCurrency(d.cumulativeInterest));
+                  }
+              } else {
+                 // Composition
+                 const eachBand = xScale.step();
+                 const index = Math.floor((mx) / eachBand);
+                 const domain = xScale.domain();
+                 
+                 if (index >= 0 && index < domain.length) {
+                     const year = domain[index];
+                     const d = data.yearlyData.find(y => String(y.year) === year);
+                     if (d) {
+                         const total = d.principal + d.interest + d.lumpSum;
+                         const intPct = total > 0 ? (d.interest / total) * 100 : 0;
+                         const princTotal = d.principal + d.lumpSum;
+                         const princPct = total > 0 ? (princTotal / total) * 100 : 0;
+                         
+                         legendText.text("");
+                         legendText.append("tspan").attr("fill", "#64748b").text("Year: ");
+                         legendText.append("tspan").attr("font-weight", "600").text(year);
+                         
+                         legendText.append("tspan").text("   ");
+                         legendText.append("tspan").attr("fill", "#64748b").text("Interest: ");
+                         legendText.append("tspan").attr("fill", "#f43f5e").attr("font-weight", "600").text(`${formatCurrency(d.interest)} (${intPct.toFixed(1)}%)`);
+
+                         legendText.append("tspan").text("   ");
+                         legendText.append("tspan").attr("fill", "#64748b").text("Principal: ");
+                         legendText.append("tspan").attr("fill", "#10b981").attr("font-weight", "600").text(`${formatCurrency(princTotal)} (${princPct.toFixed(1)}%)`);
+
+                         // Move vertical line to center of band
+                         const bandX = xScale(year) + xScale.bandwidth() / 2 + margin.left;
+                         vLine.attr("x1", bandX).attr("x2", bandX).attr("opacity", 1);
+                         hLine.attr("opacity", 0);
+                     }
+                 } else {
+                   vLine.attr("opacity", 0);
+                   legendText.text("");
+                 }
+              }
+            });
+
+        }, [data, baselineData, activeTab, isCompareMode]);
+
+        return <div ref={containerRef} className="w-full h-[540px] bg-white rounded-lg" />;
+      };
+
+      // --- COMPONENT: APP ---
+
+      function App() {
+        // Navigation State
+        const [view, setView] = useState('calculator');
+
+        // --- Calculator State ---
+        const [calcLoan, setCalcLoan] = useState(500000);
+        const [calcRate, setCalcRate] = useState(4.50);
+        const [calcYears, setCalcYears] = useState(25);
+        const [calcFreq, setCalcFreq] = useState('12');
+
+        const calcResult = useMemo(() => {
+          return calculatePayment(calcLoan, calcRate, calcYears, calcFreq);
+        }, [calcLoan, calcRate, calcYears, calcFreq]);
+
+        // --- Visualization State ---
+        const [visParams, setVisParams] = useState({
+          originalLoan: 400000,
+          currentBalance: 300000,
+          interestRate: 5.5,
+          paymentAmount: 2000,
+          frequency: 12,
+          startDate: new Date().toISOString().split('T')[0],
+          compounding: 'semi',
+          lumpSums: [],
+          adjustments: []
+        });
+
+        const [isCompareMode, setIsCompareMode] = useState(false);
+        const [baselineParams, setBaselineParams] = useState(null);
+        const [activeTab, setActiveTab] = useState('balance');
+        
+        // Temporary Inputs for Lump Sum / Adjustments
+        const [newLumpDate, setNewLumpDate] = useState('');
+        const [newLumpAmount, setNewLumpAmount] = useState('');
+        const [newAdjDate, setNewAdjDate] = useState('');
+        const [newAdjType, setNewAdjType] = useState('rate');
+        const [newAdjVal, setNewAdjVal] = useState('');
+
+        // Derived Simulation Data
+        const currentData = useMemo(() => simulateMortgage(visParams), [visParams]);
+        const baselineData = useMemo(() => baselineParams ? simulateMortgage(baselineParams) : null, [baselineParams]);
+
+        // Sync Logic
+        const handleSync = () => {
+          // Map frequency string to number for visualization logic
+          let numFreq = 12;
+          if (calcFreq === '24') numFreq = 24;
+          if (calcFreq === '26' || calcFreq === 'rapid-26') numFreq = 26;
+          if (calcFreq === '52') numFreq = 52;
+
+          setVisParams(prev => ({
+            ...prev,
+            originalLoan: calcLoan,
+            currentBalance: calcLoan,
+            interestRate: calcRate,
+            frequency: numFreq,
+            paymentAmount: Number(calcResult.toFixed(2)),
+            compounding: 'semi', // Default Canadian
+            lumpSums: [],
+            adjustments: []
+          }));
+          setIsCompareMode(false);
+          setBaselineParams(null);
+          setView('visualization');
+        };
+
+        const handleReset = () => {
+           if (view === 'calculator') {
+              setCalcLoan(500000);
+              setCalcRate(4.50);
+              setCalcYears(25);
+              setCalcFreq('12');
+           } else {
+              setVisParams({
+                  originalLoan: 400000,
+                  currentBalance: 300000,
+                  interestRate: 5.5,
+                  paymentAmount: 2000,
+                  frequency: 12,
+                  startDate: new Date().toISOString().split('T')[0],
+                  compounding: 'semi',
+                  lumpSums: [],
+                  adjustments: []
+              });
+              setIsCompareMode(false);
+              setBaselineParams(null);
+           }
+        };
+
+        // Handlers for Advanced Inputs
+        const addLumpSum = () => {
+          if(!newLumpDate || !newLumpAmount) return;
+          const amt = parseFloat(newLumpAmount);
+          if (amt <= 0) return; // Validation
+
+          const newItem = {
+              id: Date.now(),
+              date: newLumpDate,
+              amount: amt,
+              active: true
+          };
+          setVisParams(prev => ({ ...prev, lumpSums: [...prev.lumpSums, newItem] }));
+          setNewLumpAmount('');
+        };
+
+        const toggleLumpSum = (id) => {
+          setVisParams(prev => ({
+              ...prev,
+              lumpSums: prev.lumpSums.map(p => p.id === id ? { ...p, active: !p.active } : p)
+          }));
+        };
+        
+        const removeLumpSum = (id) => {
+          setVisParams(prev => ({
+              ...prev,
+              lumpSums: prev.lumpSums.filter(p => p.id !== id)
+          }));
+        };
+
+        const addAdjustment = () => {
+          if(!newAdjDate || !newAdjVal) return;
+          const val = parseFloat(newAdjVal);
+          if (val <= 0 && newAdjType === 'payment') return; // Payment can't be negative
+          if (val < 0 && newAdjType === 'rate') return; // Rate shouldn't be negative usually
+
+          const newItem = {
+              id: Date.now(),
+              date: newAdjDate,
+              type: newAdjType,
+              value: val,
+              active: true
+          };
+          setVisParams(prev => ({ ...prev, adjustments: [...prev.adjustments, newItem] }));
+          setNewAdjVal('');
+        };
+
+        const toggleAdjustment = (id) => {
+          setVisParams(prev => ({
+              ...prev,
+              adjustments: prev.adjustments.map(p => p.id === id ? { ...p, active: !p.active } : p)
+          }));
+        };
+
+        const removeAdjustment = (id) => {
+          setVisParams(prev => ({
+              ...prev,
+              adjustments: prev.adjustments.filter(p => p.id !== id)
+          }));
+        };
+
+        const handleCompareToggle = (e) => {
+            if (e.target.checked) {
+                setIsCompareMode(true);
+                setBaselineParams(JSON.parse(JSON.stringify(visParams)));
+            } else {
+                setIsCompareMode(false);
+                setBaselineParams(null);
+            }
+        };
+
+        // Helper for currency
+        const fmt = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+
+        return (
+          <div className="flex flex-col min-h-screen">
+            {/* Header */}
+            <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                  <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2">
+                          <Landmark className="text-indigo-600 w-6 h-6" />
+                          <h1 className="text-xl font-bold text-slate-900 hidden sm:block">
+                              Mortgage<span className="text-indigo-600">Tool</span>
+                          </h1>
+                      </div>
+                      <nav className="flex space-x-1 bg-slate-100 p-1 rounded-lg">
+                          <button 
+                              onClick={() => setView('calculator')}
+                              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${view === 'calculator' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                              Calculator
+                          </button>
+                          <button 
+                              onClick={() => setView('visualization')}
+                              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${view === 'visualization' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                              Visualization
+                          </button>
+                      </nav>
+                  </div>
+                  <button onClick={handleReset} className="text-sm text-slate-500 hover:text-indigo-600 transition-colors flex items-center gap-1">
+                      <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline">Reset</span>
+                  </button>
+              </div>
+            </header>
+
+            {/* Main Content */}
+            <main className="flex-grow p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full relative">
+              
+              {/* CALCULATOR VIEW */}
+              {view === 'calculator' && (
+                  <div className="animate-in fade-in duration-300 max-w-3xl mx-auto">
+                      <div className="text-center mb-8">
+                          <h2 className="text-3xl font-bold text-slate-900 mb-2">Canadian Mortgage Calculator</h2>
+                          <p className="text-slate-500">Calculate payments with standard or rapid frequency options.</p>
+                      </div>
+
+                      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                              {/* Inputs */}
+                              <div className="space-y-6">
+                                  <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Mortgage Amount</label>
+                                      <div className="relative">
+                                          <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">$</span>
+                                          <input 
+                                              type="number" 
+                                              min="0"
+                                              value={calcLoan}
+                                              onChange={(e) => setCalcLoan(Math.max(0, Number(e.target.value)))}
+                                              className="block w-full pl-7 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg" 
+                                          />
+                                      </div>
+                                  </div>
+
+                                  <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Interest Rate</label>
+                                      <div className="relative">
+                                          <input 
+                                              type="number" 
+                                              min="0"
+                                              value={calcRate}
+                                              onChange={(e) => setCalcRate(Math.max(0, Number(e.target.value)))}
+                                              step="0.01"
+                                              className="block w-full pl-3 pr-8 py-3 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg" 
+                                          />
+                                          <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500">%</span>
+                                      </div>
+                                      <p className="text-xs text-slate-500 mt-1">Semi-annual compounding (Canadian Standard)</p>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                          <label className="block text-sm font-medium text-slate-700 mb-1">Amortization</label>
+                                          <div className="relative">
+                                              <input 
+                                                  type="number" 
+                                                  min="1"
+                                                  max="100"
+                                                  value={calcYears}
+                                                  onChange={(e) => setCalcYears(Math.max(1, Number(e.target.value)))}
+                                                  className="block w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg" 
+                                              />
+                                              <span className="absolute inset-y-0 right-0 pr-8 flex items-center text-slate-400 text-sm pointer-events-none">Yrs</span>
+                                          </div>
+                                      </div>
+                                      <div>
+                                          <div className="flex items-center gap-2 mb-1">
+                                              <label className="block text-sm font-medium text-slate-700">Frequency</label>
+                                              <div className="group relative">
+                                                  <HelpCircle className="w-4 h-4 text-slate-400 cursor-help" />
+                                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl">
+                                                      <p className="font-semibold mb-1 text-slate-200">Payment Differences</p>
+                                                      <p className="mb-2"><span className="text-indigo-300">Bi-Weekly:</span> Monthly × 12 ÷ 26</p>
+                                                      <p><span className="text-indigo-300">Rapid Bi-Weekly:</span> Monthly ÷ 2. <br/>This option means you pay one extra full monthly payment per year, reducing principal faster.</p>
+                                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          <select 
+                                              value={calcFreq}
+                                              onChange={(e) => setCalcFreq(e.target.value)}
+                                              className="block w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg"
+                                          >
+                                              <option value="12">Monthly</option>
+                                              <option value="24">Semi-Monthly</option>
+                                              <option value="26">Bi-Weekly</option>
+                                              <option value="rapid-26">Rapid Bi-Weekly</option>
+                                              <option value="52">Weekly</option>
+                                          </select>
+                                      </div>
+                                  </div>
+                              </div>
+
+                              {/* Results */}
+                              <div className="bg-indigo-50 rounded-xl p-6 flex flex-col justify-center items-center text-center border border-indigo-100 relative">
+                                   <h3 className="text-slate-500 font-medium mb-1 uppercase tracking-wide text-sm">Payment Amount</h3>
+                                   <div className="text-4xl font-bold text-indigo-700 mb-2">{fmt(calcResult)}</div>
+                                   <div className="text-indigo-500 font-medium mb-8">
+                                      {calcFreq === '12' ? 'per month' : 
+                                       calcFreq === 'rapid-26' ? 'every 2 weeks (Accelerated)' : 
+                                       calcFreq === '26' ? 'every 2 weeks' : 
+                                       calcFreq === '24' ? 'twice a month' : 'weekly'}
+                                   </div>
+
+                                   <div className="space-y-2 w-full border-t border-indigo-100 pt-6">
+                                      <button onClick={handleSync} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors shadow-md flex items-center justify-center gap-2 group">
+                                          Visualize Scenario
+                                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                      </button>
+                                      <p className="text-xs text-indigo-400 mt-2">Sends this data to the interactive graph tool.</p>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
+              {/* VISUALIZATION VIEW */}
+              {view === 'visualization' && (
+                  <div className="animate-in fade-in duration-300 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                      
+                      {/* Left Column: Parameters */}
+                      <div className="lg:col-span-3 flex flex-col gap-6">
+                          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                              <div className="flex items-center justify-between mb-4">
+                                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                                      <Sliders className="w-5 h-5 text-slate-400" /> Parameters
+                                  </h2>
+                              </div>
+
+                              {/* Compare Toggle */}
+                              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 mb-6 flex items-center justify-between">
+                                  <div>
+                                      <span className="block text-sm font-semibold text-indigo-900">Compare Mode</span>
+                                      <span className={`block text-xs ${isCompareMode ? 'text-indigo-700 font-bold' : 'text-slate-500'}`}>
+                                          {isCompareMode ? 'On - Locked Baseline' : 'Off'}
+                                      </span>
+                                  </div>
+                                  <label className="relative inline-flex items-center cursor-pointer">
+                                      <input type="checkbox" checked={isCompareMode} onChange={handleCompareToggle} className="sr-only peer" />
+                                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                  </label>
+                              </div>
+
+                              {/* Parameter Inputs */}
+                              <div className="space-y-4">
+                                  <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Original Loan</label>
+                                      <MoneyInput 
+                                          value={visParams.originalLoan} 
+                                          onChange={(val) => setVisParams(p => ({...p, originalLoan: Math.max(0, val)}))}
+                                          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Current Balance</label>
+                                      <MoneyInput 
+                                          value={visParams.currentBalance} 
+                                          onChange={(val) => setVisParams(p => ({...p, currentBalance: Math.max(0, val)}))}
+                                          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Interest Rate (%)</label>
+                                      <input 
+                                          type="number" 
+                                          step="0.01"
+                                          min="0"
+                                          value={visParams.interestRate} 
+                                          onChange={(e) => setVisParams(p => ({...p, interestRate: Math.max(0, Number(e.target.value))}))}
+                                          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Frequency</label>
+                                      <select 
+                                          value={visParams.frequency} 
+                                          onChange={(e) => setVisParams(p => ({...p, frequency: Number(e.target.value)}))}
+                                          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                      >
+                                          <option value="12">Monthly (12x/yr)</option>
+                                          <option value="24">Semi-Monthly (24x/yr)</option>
+                                          <option value="26">Bi-Weekly (26x/yr)</option>
+                                          <option value="52">Weekly (52x/yr)</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="block text-sm font-medium text-slate-700 mb-1">Payment Amount</label>
+                                      <MoneyInput 
+                                          value={visParams.paymentAmount} 
+                                          onChange={(val) => setVisParams(p => ({...p, paymentAmount: Math.max(0, val)}))}
+                                          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm font-semibold text-indigo-700 focus:ring-indigo-500 focus:border-indigo-500" 
+                                      />
+                                  </div>
+                              </div>
+
+                              <div className="mt-4 text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                                  Min Interest: <span className="font-mono text-slate-700">{fmt(currentData.minInterest)}</span>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Right Column: Charts & Advanced */}
+                      <div className="lg:col-span-9 space-y-6 flex flex-col">
+                          
+                          {/* Warning Alert */}
+                          {!currentData.isViable && (
+                              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md flex items-center gap-3">
+                                  <AlertCircle className="h-5 w-5 text-red-400" />
+                                  <p className="text-sm text-red-700">Payment is too low. It does not cover the interest for the selected frequency.</p>
+                              </div>
+                          )}
+
+                          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
+                              
+                              {/* CHART CONTAINER */}
+                              <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-1 flex flex-col min-h-[600px]">
+                                  {/* Tabs & KPIs */}
+                                  <div className="border-b border-slate-200 px-4 flex flex-wrap items-center justify-between min-h-[60px] gap-4">
+                                      <nav className="-mb-px flex space-x-6 shrink-0">
+                                          <button 
+                                              onClick={() => setActiveTab('balance')}
+                                              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'balance' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                          >
+                                              Balance History
+                                          </button>
+                                          <button 
+                                              onClick={() => setActiveTab('composition')}
+                                              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'composition' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                          >
+                                              Annual Breakdown
+                                          </button>
+                                      </nav>
+
+                                      <div className="flex items-center gap-4 py-2 ml-auto shrink-0 text-right">
+                                          <div>
+                                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Interest</div>
+                                              <div className="text-sm font-bold text-emerald-600 font-mono">
+                                                  {fmt(currentData.totalInterest)}
+                                                  {baselineData && isCompareMode && (
+                                                      <span className={`block text-[10px] ${baselineData.totalInterest > currentData.totalInterest ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                          ({baselineData.totalInterest > currentData.totalInterest ? 'Saved ' : 'Added '} 
+                                                          {fmt(Math.abs(baselineData.totalInterest - currentData.totalInterest))})
+                                                      </span>
+                                                  )}
+                                              </div>
+                                          </div>
+                                          <div className="w-px h-6 bg-slate-100 hidden sm:block"></div>
+                                          <div>
+                                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Cost</div>
+                                              <div className="text-sm font-bold text-slate-700 font-mono">
+                                                  {fmt(currentData.totalCost)}
+                                              </div>
+                                          </div>
+                                          <div className="w-px h-6 bg-slate-100 hidden sm:block"></div>
+                                          <div>
+                                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Payoff</div>
+                                              <div className="text-sm font-bold text-purple-600">
+                                                  {currentData.payoffDate instanceof Date 
+                                                      ? currentData.payoffDate.toLocaleDateString(undefined, {month:'short', year:'numeric'}) 
+                                                      : 'Never'}
+                                              </div>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  
+                                  {/* The D3 Graph */}
+                                  <div className="flex-grow p-4">
+                                      <D3Chart 
+                                          data={currentData} 
+                                          baselineData={baselineData} 
+                                          activeTab={activeTab}
+                                          isCompareMode={isCompareMode}
+                                      />
+                                  </div>
+                              </div>
+
+                              {/* SIDEBAR: LUMP SUMS & ADJUSTMENTS */}
+                              <div className="xl:col-span-1 flex flex-col gap-6">
+                                  
+                                  {/* Lump Sums */}
+                                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-1/2">
+                                      <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                                          <PiggyBank className="w-5 h-5 text-emerald-500" /> Prepayments
+                                      </h2>
+                                      <p className="text-xs text-slate-500 mb-4">Max 15% of original loan/yr ({fmt(visParams.originalLoan * 0.15)}).</p>
+                                      
+                                      <div className="flex flex-col gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                          <input 
+                                              type="date" 
+                                              value={newLumpDate}
+                                              onChange={(e) => setNewLumpDate(e.target.value)}
+                                              className="block w-full px-2 py-1 text-sm border border-slate-300 rounded" 
+                                          />
+                                          <div className="flex gap-2">
+                                              <input 
+                                                  type="number" 
+                                                  placeholder="Amount" 
+                                                  min="0"
+                                                  value={newLumpAmount}
+                                                  onChange={(e) => setNewLumpAmount(e.target.value)}
+                                                  className="block w-full px-2 py-1 text-sm border border-slate-300 rounded" 
+                                              />
+                                              <button onClick={addLumpSum} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm font-medium">Add</button>
+                                          </div>
+                                      </div>
+                                      <div className="overflow-y-auto flex-grow space-y-2 pr-1">
+                                          {visParams.lumpSums.map(ls => (
+                                              <div key={ls.id} className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm">
+                                                  <div className="flex items-center gap-2">
+                                                      <input type="checkbox" checked={ls.active} onChange={() => toggleLumpSum(ls.id)} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                                      <div className={!ls.active ? 'opacity-50 line-through' : ''}>
+                                                          <div className="font-medium text-slate-700">{ls.date}</div>
+                                                          <div className="text-emerald-600 font-mono text-xs">+{fmt(ls.amount)}</div>
+                                                      </div>
+                                                  </div>
+                                                  <button onClick={() => removeLumpSum(ls.id)} className="text-slate-400 hover:text-red-500">×</button>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+
+                                  {/* Adjustments */}
+                                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-1/2">
+                                      <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                                          <CalendarClock className="w-5 h-5 text-amber-500" /> Renewals
+                                      </h2>
+                                      <p className="text-xs text-slate-500 mb-4">Schedule rate or payment changes.</p>
+                                      
+                                      <div className="flex flex-col gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                          <input 
+                                              type="date" 
+                                              value={newAdjDate}
+                                              onChange={(e) => setNewAdjDate(e.target.value)}
+                                              className="block w-full px-2 py-1 text-sm border border-slate-300 rounded mb-1" 
+                                          />
+                                          <div className="flex gap-2">
+                                              <select 
+                                                  value={newAdjType} 
+                                                  onChange={(e) => setNewAdjType(e.target.value)}
+                                                  className="block w-1/2 px-2 py-1 text-sm border border-slate-300 rounded"
+                                              >
+                                                  <option value="rate">Rate %</option>
+                                                  <option value="payment">Pmt $</option>
+                                              </select>
+                                              <input 
+                                                  type="number" 
+                                                  placeholder="Val" 
+                                                  min="0"
+                                                  value={newAdjVal}
+                                                  onChange={(e) => setNewAdjVal(e.target.value)}
+                                                  step={newAdjType === 'rate' ? 0.01 : 1}
+                                                  className="block w-1/3 px-2 py-1 text-sm border border-slate-300 rounded" 
+                                              />
+                                              <button onClick={addAdjustment} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded text-sm font-medium">Add</button>
+                                          </div>
+                                      </div>
+                                      <div className="overflow-y-auto flex-grow space-y-2 pr-1">
+                                          {visParams.adjustments.map(adj => (
+                                              <div key={adj.id} className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm">
+                                                  <div className="flex items-center gap-2">
+                                                      <input type="checkbox" checked={adj.active} onChange={() => toggleAdjustment(adj.id)} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                                      <div className={!adj.active ? 'opacity-50 line-through' : ''}>
+                                                          <div className="font-medium text-slate-700">{adj.date}</div>
+                                                          <div className="text-amber-600 font-mono text-xs">
+                                                              {adj.type === 'rate' ? `${adj.value}% Rate` : `${fmt(adj.value)} Pmt`}
+                                                          </div>
+                                                      </div>
+                                                  </div>
+                                                  <button onClick={() => removeAdjustment(adj.id)} className="text-slate-400 hover:text-red-500">×</button>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              )}
+            </main>
+          </div>
+        );
       }
 
-      // --- EVENTS ---
-      function switchTab(tab) {
-        currentTab = tab;
-        const btnBalance = document.getElementById('tab-balance');
-        const btnComp = document.getElementById('tab-composition');
-        const activeClasses = ['border-indigo-500', 'text-indigo-600'];
-        const inactiveClasses = [
-          'border-transparent',
-          'text-slate-500',
-          'hover:text-slate-700',
-          'hover:border-slate-300',
-        ];
-        if (tab === 'balance') {
-          btnBalance.classList.add(...activeClasses);
-          btnBalance.classList.remove(...inactiveClasses);
-          btnComp.classList.remove(...activeClasses);
-          btnComp.classList.add(...inactiveClasses);
-        } else {
-          btnComp.classList.add(...activeClasses);
-          btnComp.classList.remove(...inactiveClasses);
-          btnBalance.classList.remove(...activeClasses);
-          btnBalance.classList.add(...inactiveClasses);
-        }
-        drawD3();
-      }
-
-      function resetDefaults() {
-        document.getElementById('originalLoanAmount').value = 400000;
-        document.getElementById('loanAmount').value = 300000;
-        document.getElementById('interestRate').value = 5.5;
-        document.getElementById('paymentAmount').value = 2000;
-        document.getElementById('frequency').value = 12;
-        document.getElementById('startDate').value = today;
-        lumpSumPayments = [];
-        adjustments = [];
-        renderLumpSumList();
-        renderAdjustmentList();
-        calculate();
-      }
-      const inputs = [
-        'originalLoanAmount',
-        'loanAmount',
-        'interestRate',
-        'paymentAmount',
-        'frequency',
-        'startDate',
-      ];
-      inputs.forEach(id =>
-        document.getElementById(id).addEventListener('input', calculate)
-      );
-      window.addEventListener('resize', drawD3);
-      calculate();
+      // --- MOUNT ROOT ---
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
     </script>
   </body>
 </html>
